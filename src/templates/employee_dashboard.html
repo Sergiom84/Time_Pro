@@ -3,33 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Panel de Empleado - Miss Sushi Time Tracker</title>
+  <title>Panel de Empleado - Time Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            'miss-sushi-pink': '#E85D8A',
-            'miss-sushi-grey': '#4A4A4A',
+            'turquoise': '#00CED1',
+            'app-grey': '#4A4A4A',
           }
         }
       }
     }
   </script>
 </head>
-<body class="bg-black text-white font-sans min-h-screen m-0 p-6 sm:p-8">
+<body class="bg-white text-gray-900 font-sans min-h-screen m-0 p-6 sm:p-8">
   <div class="mx-auto max-w-5xl">
 
     <!-- Encabezado -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
       <div class="flex items-center gap-4">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Miss Sushi Logo" class="h-10"/>
-        <h1 class="text-miss-sushi-pink text-2xl sm:text-3xl font-semibold">
+        <p class="text-gray-400 text-sm italic">Aquí tu logo</p>
+        <h1 class="text-turquoise text-2xl sm:text-3xl font-semibold">
           Bienvenido, {{ user.full_name }}
         </h1>
       </div>
-      <a href="{{ url_for('auth.logout') }}" class="text-miss-sushi-pink hover:underline">
+      <a href="{{ url_for('auth.logout') }}" class="text-turquoise hover:underline">
         Cerrar Sesión
       </a>
     </div>
@@ -51,10 +51,10 @@
     {% endwith %}
 
     <!-- Estado Actual -->
-    <div class="mb-8 p-6 border border-gray-700 rounded-lg bg-gray-900">
-      <h3 class="text-xl font-medium mb-4 text-miss-sushi-pink">Estado Actual</h3>
+    <div class="mb-8 p-6 border border-gray-300 rounded-lg bg-gray-50">
+      <h3 class="text-xl font-medium mb-4 text-turquoise">Estado Actual</h3>
       {% if today_record %}
-        <p class="mb-2 text-yellow-400">¡Tienes una sesión de fichaje abierta!</p>
+        <p class="mb-2 text-yellow-600">¡Tienes una sesión de fichaje abierta!</p>
         <p class="mb-1"><strong>Centro:</strong> {{ user.centro or '-' }}</p>
         <p class="mb-1">
           <strong>Entrada:</strong>
@@ -62,7 +62,7 @@
         </p>
         <p><strong>Salida:</strong> Pendiente</p>
       {% else %}
-        <p class="text-gray-400">No tienes ninguna sesión de fichaje activa.</p>
+        <p class="text-gray-600">No tienes ninguna sesión de fichaje activa.</p>
       {% endif %}
       {% include 'check_in_out_form.html' %}
     </div>
