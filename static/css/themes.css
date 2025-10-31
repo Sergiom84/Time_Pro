@@ -1,0 +1,372 @@
+/* Sistema de Temas para Time Tracker */
+
+/* Variables base que se aplicarán a todos los temas */
+:root {
+    /* Transición suave para cambio de temas */
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tema 1: Oscuro Turquesa (Principal) */
+[data-theme="dark-turquoise"] {
+    /* Colores principales */
+    --bg-primary: #1a3448;          /* Azul oscuro/navy */
+    --bg-secondary: #152939;
+    --bg-tertiary: #0f1f2c;
+    --bg-card: #1e3a4f;
+    --bg-hover: #2a4863;
+
+    /* Colores de acento */
+    --accent-primary: #00d9bf;      /* Turquesa brillante */
+    --accent-secondary: #00b89f;
+    --accent-hover: #00e8cc;
+    --accent-light: #33e5d1;
+    --accent-dark: #009982;
+
+    /* Colores de texto */
+    --text-primary: #e8f4f1;
+    --text-secondary: #b4d4ce;
+    --text-muted: #8aa8a3;
+    --text-inverse: #1a3448;
+
+    /* Bordes y líneas */
+    --border-color: #2a4863;
+    --border-light: #3a5873;
+    --divider: #25415a;
+
+    /* Estados */
+    --success: #00d9bf;
+    --warning: #ffc107;
+    --danger: #ff5252;
+    --info: #4fc3f7;
+
+    /* Sombras */
+    --shadow-sm: 0 2px 4px rgba(0, 217, 191, 0.1);
+    --shadow-md: 0 4px 8px rgba(0, 217, 191, 0.15);
+    --shadow-lg: 0 8px 16px rgba(0, 217, 191, 0.2);
+    --shadow-xl: 0 12px 24px rgba(0, 217, 191, 0.25);
+
+    /* Efectos especiales */
+    --glow: 0 0 20px rgba(0, 217, 191, 0.4);
+    --glow-strong: 0 0 30px rgba(0, 217, 191, 0.6);
+}
+
+/* Tema 2: Claro Minimalista */
+[data-theme="light-minimal"] {
+    /* Colores principales */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #f0f2f4;
+    --bg-card: #ffffff;
+    --bg-hover: #f0f2f4;
+
+    /* Colores de acento */
+    --accent-primary: #00d9bf;
+    --accent-secondary: #00b89f;
+    --accent-hover: #00e8cc;
+    --accent-light: #e6faf7;
+    --accent-dark: #009982;
+
+    /* Colores de texto */
+    --text-primary: #1a3448;
+    --text-secondary: #4a6578;
+    --text-muted: #8aa8a3;
+    --text-inverse: #ffffff;
+
+    /* Bordes y líneas */
+    --border-color: #e0e6ed;
+    --border-light: #f0f2f4;
+    --divider: #d0d6dd;
+
+    /* Estados */
+    --success: #00d9bf;
+    --warning: #ffc107;
+    --danger: #ff5252;
+    --info: #4fc3f7;
+
+    /* Sombras */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 15px 30px rgba(0, 0, 0, 0.12);
+
+    /* Efectos especiales */
+    --glow: 0 0 15px rgba(0, 217, 191, 0.2);
+    --glow-strong: 0 0 25px rgba(0, 217, 191, 0.3);
+
+    /* Patrón de fondo */
+    --pattern: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300d9bf' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Tema 3: Gradiente Turquesa */
+[data-theme="turquoise-gradient"] {
+    /* Colores principales */
+    --bg-primary: #a6f0e8;
+    --bg-secondary: #8ae8dd;
+    --bg-tertiary: #6de0d2;
+    --bg-card: rgba(255, 255, 255, 0.9);
+    --bg-hover: rgba(255, 255, 255, 0.95);
+
+    /* Colores de acento */
+    --accent-primary: #00d9bf;
+    --accent-secondary: #00b89f;
+    --accent-hover: #009982;
+    --accent-light: #e6faf7;
+    --accent-dark: #007a68;
+
+    /* Colores de texto */
+    --text-primary: #1a3448;
+    --text-secondary: #2a4458;
+    --text-muted: #4a6578;
+    --text-inverse: #ffffff;
+
+    /* Bordes y líneas */
+    --border-color: rgba(255, 255, 255, 0.3);
+    --border-light: rgba(255, 255, 255, 0.5);
+    --divider: rgba(255, 255, 255, 0.4);
+
+    /* Estados */
+    --success: #00d9bf;
+    --warning: #ffc107;
+    --danger: #ff5252;
+    --info: #4fc3f7;
+
+    /* Sombras */
+    --shadow-sm: 0 2px 8px rgba(0, 150, 136, 0.1);
+    --shadow-md: 0 4px 16px rgba(0, 150, 136, 0.15);
+    --shadow-lg: 0 8px 32px rgba(0, 150, 136, 0.2);
+    --shadow-xl: 0 12px 48px rgba(0, 150, 136, 0.25);
+
+    /* Efectos especiales */
+    --glow: 0 0 20px rgba(0, 217, 191, 0.3);
+    --glow-strong: 0 0 40px rgba(0, 217, 191, 0.4);
+
+    /* Gradiente de fondo */
+    --gradient: linear-gradient(135deg, #6dd5ed 0%, #66e3d9 25%, #5fedc6 50%, #5af0c0 75%, #55f3ba 100%);
+
+    /* Formas orgánicas de fondo */
+    --blob-1: radial-gradient(circle at 20% 80%, rgba(93, 237, 198, 0.3) 0%, transparent 50%);
+    --blob-2: radial-gradient(circle at 80% 20%, rgba(102, 227, 217, 0.3) 0%, transparent 50%);
+    --blob-3: radial-gradient(circle at 70% 70%, rgba(85, 243, 186, 0.2) 0%, transparent 50%);
+}
+
+/* Estilos generales que usan las variables CSS */
+body[data-theme] {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+/* Aplicar gradiente cuando corresponda */
+body[data-theme="turquoise-gradient"] {
+    background: var(--gradient);
+    min-height: 100vh;
+    position: relative;
+}
+
+body[data-theme="turquoise-gradient"]::before,
+body[data-theme="turquoise-gradient"]::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+body[data-theme="turquoise-gradient"]::before {
+    width: 400px;
+    height: 400px;
+    background: var(--blob-1);
+    top: -200px;
+    right: -200px;
+    animation: float 20s ease-in-out infinite;
+}
+
+body[data-theme="turquoise-gradient"]::after {
+    width: 600px;
+    height: 600px;
+    background: var(--blob-2);
+    bottom: -300px;
+    left: -300px;
+    animation: float 25s ease-in-out infinite reverse;
+}
+
+/* Aplicar patrón cuando corresponda */
+body[data-theme="light-minimal"] {
+    background-color: var(--bg-primary);
+    background-image: var(--pattern);
+    background-attachment: fixed;
+}
+
+/* Animación flotante para elementos del tema gradiente */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    33% {
+        transform: translateY(-30px) rotate(120deg);
+    }
+    66% {
+        transform: translateY(30px) rotate(240deg);
+    }
+}
+
+/* Clases utilitarias para usar con las variables */
+.bg-primary { background-color: var(--bg-primary) !important; }
+.bg-secondary { background-color: var(--bg-secondary) !important; }
+.bg-tertiary { background-color: var(--bg-tertiary) !important; }
+.bg-card { background-color: var(--bg-card) !important; }
+.bg-hover:hover { background-color: var(--bg-hover) !important; }
+
+.text-primary { color: var(--text-primary) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-inverse { color: var(--text-inverse) !important; }
+
+.accent-primary { color: var(--accent-primary) !important; }
+.accent-secondary { color: var(--accent-secondary) !important; }
+.bg-accent-primary { background-color: var(--accent-primary) !important; }
+.bg-accent-secondary { background-color: var(--accent-secondary) !important; }
+
+.border-primary { border-color: var(--border-color) !important; }
+.border-light { border-color: var(--border-light) !important; }
+
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow-md { box-shadow: var(--shadow-md) !important; }
+.shadow-lg { box-shadow: var(--shadow-lg) !important; }
+.shadow-xl { box-shadow: var(--shadow-xl) !important; }
+
+.glow { box-shadow: var(--glow) !important; }
+.glow-strong { box-shadow: var(--glow-strong) !important; }
+
+/* Botones con el tema aplicado */
+.btn-primary {
+    background-color: var(--accent-primary);
+    color: var(--text-inverse);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: var(--transition);
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    box-shadow: var(--glow);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-md);
+}
+
+/* Cards con el tema aplicado */
+.card {
+    background-color: var(--bg-card);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+/* Inputs con el tema aplicado */
+.input-field {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    transition: var(--transition);
+    width: 100%;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);
+    background-color: var(--bg-primary);
+}
+
+/* Selector de tema personalizado */
+.theme-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.theme-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 0.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-option:hover {
+    transform: scale(1.1);
+    border-color: var(--accent-primary);
+}
+
+.theme-option.active {
+    border-color: var(--accent-primary);
+    box-shadow: var(--glow);
+}
+
+.theme-option.dark-turquoise {
+    background: linear-gradient(135deg, #1a3448 50%, #00d9bf 50%);
+}
+
+.theme-option.light-minimal {
+    background: linear-gradient(135deg, #ffffff 50%, #00d9bf 50%);
+}
+
+.theme-option.turquoise-gradient {
+    background: linear-gradient(135deg, #6dd5ed, #5af0c0);
+}
+
+/* Animación de cambio de tema */
+.theme-changing {
+    animation: themeTransition 0.6s ease-in-out;
+}
+
+@keyframes themeTransition {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

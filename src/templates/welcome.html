@@ -3,38 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bienvenido - Miss Sushi Time Tracker</title>
+    <title>Bienvenido - Time Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-          theme: {
-            extend: {
-              colors: {
-                'miss-sushi-pink': '#E85D8A',
-                'miss-sushi-grey': '#4A4A4A',
-              }
-            }
-          }
-        }
-    </script>
 </head>
-<body class="bg-black text-white font-sans flex justify-center items-center min-h-screen m-0">
-    <div class="text-center p-10">
-        <!-- Logo de la empresa -->
-        <img
-          src="{{ url_for('static', filename='logo.png') }}"
-          alt="Miss Sushi Logo"
-          class="mx-auto mb-8 w-48"
-        />
+<body data-theme="dark-turquoise" class="font-sans flex justify-center items-center min-h-screen m-0" style="background-color: var(--bg-primary); color: var(--text-primary);">
+    <div class="text-center p-10 flex flex-col items-center justify-center">
+        <!-- Logo círculo con borde turquesa -->
+        <div class="mx-auto mb-12 w-56 h-56 rounded-full border-4 flex items-center justify-center"
+             style="border-color: var(--accent-primary); background-color: var(--bg-card); box-shadow: var(--shadow-xl);">
+            <span class="text-gray-400 text-lg italic font-medium">Aquí tu logo</span>
+        </div>
+
         <!-- Título -->
-        <h1 class="text-miss-sushi-pink mb-12 text-3xl font-semibold">
-          Time Tracker
+        <h1 class="mb-16 text-5xl font-bold tracking-tight" style="color: var(--accent-primary);">
+            Time Tracker
         </h1>
+
         <!-- Botón de Iniciar Sesión -->
-        <div class="flex flex-col gap-6 items-center">
+        <div class="flex flex-col gap-6 items-center w-full">
             <a
               href="{{ url_for('auth.login') }}"
-              class="inline-block text-center py-4 px-10 rounded-full text-lg font-bold transition-opacity duration-300 ease-in-out bg-miss-sushi-pink text-white hover:opacity-90 w-64 no-underline"
+              class="inline-block text-center py-4 px-12 rounded-full text-lg font-bold transition-all duration-300 ease-in-out text-white hover:opacity-90 active:transform active:scale-95 w-80 no-underline"
+              style="background-color: var(--accent-primary);"
             >
               Iniciar Sesión
             </a>

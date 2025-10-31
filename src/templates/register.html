@@ -24,10 +24,10 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="mb-4">
+                <div id="flash-messages" class="mb-4">
                 {% for category, message in messages %}
-                    <div class="p-3 rounded-md 
-                        {% if category == 'danger' %} bg-red-500 border border-red-700 text-white 
+                    <div class="p-3 rounded-md
+                        {% if category == 'danger' %} bg-red-500 border border-red-700 text-white
                         {% elif category == 'success' %} bg-green-500 border border-green-700 text-white
                         {% else %} bg-blue-500 border border-blue-700 text-white {% endif %}
                         ">{{ message }}</div>
@@ -72,5 +72,17 @@
             ¿Ya tienes cuenta? <a href="{{ url_for('auth.login') }}" class="text-miss-sushi-pink hover:underline">Inicia sesión aquí</a>
         </p>
     </div>
+
+    <script>
+        // Auto-desvanecido de mensajes flash tras 2 segundos
+        const flashMessages = document.getElementById('flash-messages');
+        if (flashMessages) {
+            setTimeout(() => {
+                flashMessages.style.transition = 'opacity 0.6s ease';
+                flashMessages.style.opacity = '0';
+                setTimeout(() => flashMessages.remove(), 800);
+            }, 2000);
+        }
+    </script>
 </body>
 </html>

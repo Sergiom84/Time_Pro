@@ -1,7 +1,8 @@
 # gunicorn.conf.py
 
 bind = "0.0.0.0:$PORT"
-worker_class = "sync"
+# Usar eventlet para soportar WebSockets con Flask-SocketIO
+worker_class = "eventlet"
 workers = 1
 timeout = 120
 keepalive = 2

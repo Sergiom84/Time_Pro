@@ -4,7 +4,7 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime, date, timedelta
-from models.models import User, TimeRecord, EmployeeStatus
+from models.models import User, TimeRecord, EmployeeStatus, SystemConfig
 from models.database import db
 
 admin_bp = Blueprint(
@@ -12,6 +12,10 @@ admin_bp = Blueprint(
     template_folder="../templates",
     url_prefix="/admin"
 )
+
+# Listas estáticas de centros y categorías disponibles
+CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
+CATEGORIAS_DISPONIBLES = ["Coordinador", "Empleado", "Gestor"]
 
 # --------------------------------------------------------------------
 #  UTILIDADES
@@ -41,6 +45,20 @@ def get_admin_centro():
     if u and u.is_admin and u.centro and u.centro != "-- Sin categoría --":
         return u.centro
     return None
+
+def get_centros_disponibles():
+    """
+    Devuelve la lista de centros disponibles según el rol del admin.
+    - Super admin (sin centro asignado): ve todos los centros
+    - Admin de centro específico: solo ve su centro
+    """
+    centro_admin = get_admin_centro()
+    if centro_admin:
+        # Admin de centro específico: solo su centro
+        return [centro_admin]
+    else:
+        # Super admin: todos los centros
+        return CENTROS_DISPONIBLES.copy()
 
 # Helpers de permisos
 
@@ -148,16 +166,9 @@ def dashboard():
 
     records_with_accum.reverse()
 
-    # Opciones dinámicas de centros y categorías (limitadas por centro del admin si aplica)
-    centros_q = User.query
-    if centro_admin:
-        centros_q = centros_q.filter(User.centro == centro_admin)
-    centros = [c[0] for c in centros_q.with_entities(User.centro).filter(User.centro.isnot(None)).distinct().order_by(User.centro).all()]
-
-    categorias_q = User.query
-    if centro_admin:
-        categorias_q = categorias_q.filter(User.centro == centro_admin)
-    categorias = [c[0] for c in categorias_q.with_entities(User.categoria).filter(User.categoria.isnot(None)).distinct().order_by(User.categoria).all()]
+    # Obtener centros disponibles según el rol del admin
+    centros = get_centros_disponibles()
+    categorias = CATEGORIAS_DISPONIBLES.copy()
 
     return render_template(
         "admin_dashboard.html",
@@ -197,22 +208,19 @@ def manage_users():
 
     users = q.order_by(User.username).all()
 
-    # Opciones dinámicas de centros y categorías (limitadas por centro del admin si aplica)
-    centros_q = User.query
-    if centro_admin:
-        centros_q = centros_q.filter(User.centro == centro_admin)
-    centros = [c[0] for c in centros_q.with_entities(User.centro).filter(User.centro.isnot(None)).distinct().order_by(User.centro).all()]
-
-    categorias_q = User.query
-    if centro_admin:
-        categorias_q = categorias_q.filter(User.centro == centro_admin)
-    categorias = [c[0] for c in categorias_q.with_entities(User.categoria).filter(User.categoria.isnot(None)).distinct().order_by(User.categoria).all()]
+    # Obtener centros disponibles según el rol del admin
+    centros = get_centros_disponibles()
+    categorias = CATEGORIAS_DISPONIBLES.copy()
 
     return render_template("manage_users.html", users=users, centros=centros, categorias=categorias, centro_admin=centro_admin)
 
 @admin_bp.route("/users/add", methods=["GET", "POST"])
 @admin_required
 def add_user():
+    centro_admin = get_admin_centro()
+    centros = get_centros_disponibles()
+    categorias = CATEGORIAS_DISPONIBLES.copy()
+
     if request.method == "POST":
         username      = request.form.get("username")
         password      = request.form.get("password")
@@ -223,9 +231,13 @@ def add_user():
         weekly_hours  = request.form.get("weekly_hours", type=int)
         centro        = request.form.get("centro") or None
         categoria     = request.form.get("categoria") or None
+
+        # Si el admin tiene un centro asignado, forzar que el usuario nuevo también lo tenga
+        if centro_admin:
+            centro = centro_admin
         hire_date_str = request.form.get("hire_date")
         termination_date_str = request.form.get("termination_date")
-        
+
         # Convertir fechas si están presentes
         hire_date = None
         termination_date = None
@@ -237,7 +249,8 @@ def add_user():
         except ValueError:
             flash("Formato de fecha inválido.", "danger")
             return render_template("user_form.html", user=None, action="add",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
         # Super admin: centro vacío o "-- Sin categoría --"
         req_is_super  = (centro in (None, "-- Sin categoría --"))
         is_admin      = req_is_admin if can_grant_admin() else False
@@ -250,12 +263,14 @@ def add_user():
         if not all([username, password, full_name, email]) or weekly_hours is None:
             flash("Todos los campos son obligatorios.", "danger")
             return render_template("user_form.html", user=None, action="add",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
 
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash("El nombre de usuario o el correo electrónico ya existen.", "danger")
             return render_template("user_form.html", user=None, action="add",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
 
         new_user = User(
             username         = username,
@@ -276,12 +291,16 @@ def add_user():
         flash("Usuario creado correctamente.", "success")
         return redirect(url_for("admin.manage_users"))
 
-    return render_template("user_form.html", user=None, action="add", centro_admin=get_admin_centro())
+    return render_template("user_form.html", user=None, action="add", centro_admin=centro_admin,
+                           centros=centros, categorias=categorias)
 
 @admin_bp.route("/users/edit/<int:user_id>", methods=["GET", "POST"])
 @admin_required
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
+    centro_admin = get_admin_centro()
+    centros = get_centros_disponibles()
+    categorias = CATEGORIAS_DISPONIBLES.copy()
 
     if request.method == "POST":
         if user.id == session.get("user_id") and (
@@ -305,32 +324,41 @@ def edit_user(user_id):
            User.query.filter(User.username == new_username, User.id != user.id).first():
             flash("El nuevo nombre de usuario ya existe.", "danger")
             return render_template("user_form.html", user=user, action="edit",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
         if new_email != user.email and \
            User.query.filter(User.email == new_email, User.id != user.id).first():
             flash("El nuevo correo electrónico ya existe.", "danger")
             return render_template("user_form.html", user=user, action="edit",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
 
         # campos simples
         user.username      = new_username
         user.email         = new_email
         user.full_name     = request.form.get("full_name")
         user.weekly_hours  = request.form.get("weekly_hours", type=int)
-        user.centro        = request.form.get("centro") or None
+
+        # Si el admin tiene un centro asignado, forzar que el usuario mantenga ese centro
+        if centro_admin:
+            user.centro = centro_admin
+        else:
+            user.centro = request.form.get("centro") or None
+
         user.categoria     = request.form.get("categoria") or None
-        
+
         # Fechas de alta y baja
         hire_date_str = request.form.get("hire_date")
         termination_date_str = request.form.get("termination_date")
-        
+
         try:
             user.hire_date = datetime.strptime(hire_date_str, "%Y-%m-%d").date() if hire_date_str else None
             user.termination_date = datetime.strptime(termination_date_str, "%Y-%m-%d").date() if termination_date_str else None
         except ValueError:
             flash("Formato de fecha inválido.", "danger")
             return render_template("user_form.html", user=user, action="edit",
-                                   form_data=request.form, centro_admin=get_admin_centro())
+                                   form_data=request.form, centro_admin=centro_admin,
+                                   centros=centros, categorias=categorias)
 
         if user.id != session.get("user_id"):
             user.is_admin  = request.form.get("is_admin")  == "on"
@@ -344,7 +372,8 @@ def edit_user(user_id):
         flash("Usuario actualizado.", "success")
         return redirect(url_for("admin.manage_users"))
 
-    return render_template("user_form.html", user=user, action="edit", centro_admin=get_admin_centro())
+    return render_template("user_form.html", user=user, action="edit", centro_admin=centro_admin,
+                           centros=centros, categorias=categorias)
 
 @admin_bp.route("/users/delete/<int:user_id>", methods=["POST"])
 @admin_required
@@ -353,6 +382,10 @@ def delete_user(user_id):
     if user.id == session.get("user_id"):
         flash("No puedes eliminar tu propia cuenta.", "danger")
         return redirect(url_for("admin.manage_users"))
+
+    # Limpiar referencias en system_config antes de borrar el usuario
+    SystemConfig.query.filter_by(updated_by=user_id).update({"updated_by": None})
+
     db.session.delete(user)
     db.session.commit()
     flash("Usuario eliminado.", "success")
@@ -512,11 +545,8 @@ def manage_records():
     # Calcular si es la semana actual
     is_current_week = (start_of_week == start_of_current)
 
-    # Opciones dinámicas de centros para el select
-    centros_q = User.query
-    if centro_admin:
-        centros_q = centros_q.filter(User.centro == centro_admin)
-    centros = [c[0] for c in centros_q.with_entities(User.centro).filter(User.centro.isnot(None)).distinct().order_by(User.centro).all()]
+    # Obtener centros disponibles según el rol del admin
+    centros = get_centros_disponibles()
 
     return render_template(
         "manage_records.html",
@@ -802,7 +832,9 @@ def open_records():
                 flash(f"Error al cerrar: {e}", "danger")
         return redirect(url_for("admin.open_records"))
 
-    return render_template("open_records.html", open_records=open_records)
+    # Pasar la hora actual para usarla como valor predeterminado
+    now = datetime.now()
+    return render_template("open_records.html", open_records=open_records, now=now)
 
 # --------------------------------------------------------------------
 #  CIERRE AUTOMÁTICO MANUAL

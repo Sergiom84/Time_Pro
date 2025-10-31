@@ -3,12 +3,14 @@
 {% block header %}<span class="text-miss-sushi-pink">Panel de Administración</span>{% endblock %}
 
 {% block content %}
+
 <section class="bg-gray-800 shadow-md rounded-lg p-6 mb-6">
   <div class="mb-3">
     <span class="font-semibold text-lg text-gray-200">Resumen Rápido</span>
     <div class="flex flex-row gap-2 mt-2">
       <a href="{{ url_for('admin.dashboard') }}"
-         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-fuchsia-700 hover:bg-fuchsia-800">
+         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white transition-all hover:opacity-90"
+         style="background-color: var(--accent-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
@@ -24,11 +26,11 @@
     </div>
   </div>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-    <div class="bg-fuchsia-800 rounded p-4 flex flex-col items-center shadow">
+    <div class="rounded p-4 flex flex-col items-center shadow" style="background-color: var(--accent-dark);">
       <span class="text-3xl font-bold text-white">{{ user_count }}</span>
       <span class="text-xs uppercase tracking-wide text-gray-200 mt-1">Usuarios<br/>registrados</span>
     </div>
-    <div class="bg-fuchsia-800 rounded p-4 flex flex-col items-center shadow">
+    <div class="rounded p-4 flex flex-col items-center shadow" style="background-color: var(--accent-dark);">
       <span class="text-3xl font-bold text-white">{{ active_user_count }}</span>
       <span class="text-xs uppercase tracking-wide text-gray-200 mt-1">Usuarios<br/>activos</span>
     </div>
@@ -55,7 +57,7 @@
       </select>
     </div>
     <div class="flex gap-2">
-      <button type="submit" class="px-4 py-2 bg-fuchsia-800 hover:bg-fuchsia-700 text-white rounded">Aplicar</button>
+      <button type="submit" class="px-4 py-2 text-white rounded transition-all hover:opacity-90" style="background-color: var(--accent-primary);">Aplicar</button>
       <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">Limpiar</a>
     </div>
   </form>

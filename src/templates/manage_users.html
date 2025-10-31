@@ -8,7 +8,8 @@
 <section class="bg-gray-800 shadow-md rounded-lg p-6 mb-6">
   <div class="mb-5">
       <a href="{{ url_for('admin.add_user') }}"
-         class="inline-block py-2 px-4 rounded-lg bg-fuchsia-800 text-white hover:bg-fuchsia-700 transition-colors duration-300 ease-in-out shadow-md">
+         class="inline-block py-2 px-4 rounded-lg text-white transition-all duration-300 ease-in-out shadow-md hover:opacity-90"
+         style="background-color: var(--accent-primary);">
           Añadir Nuevo Usuario
       </a>
   </div>
@@ -35,14 +36,14 @@
     </div>
     <div>
       <label class="block text-xs text-gray-300 mb-1">Buscar Usuario</label>
-      <input type="text" 
-             name="search" 
+      <input type="text"
+             name="search"
              value="{{ request.args.get('search', '') }}"
              placeholder="Nombre, apellido o usuario..."
-             class="w-full px-3 py-2 rounded bg-gray-800 text-gray-200 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-fuchsia-800">
+             class="w-full px-3 py-2 rounded bg-gray-800 text-gray-200 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
     </div>
     <div class="flex gap-2">
-      <button type="submit" class="px-4 py-2 bg-fuchsia-800 hover:bg-fuchsia-700 text-white rounded">Aplicar</button>
+      <button type="submit" class="px-4 py-2 text-white rounded transition-all hover:opacity-90" style="background-color: var(--accent-primary);">Aplicar</button>
       <a href="{{ url_for('admin.manage_users') }}" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">Limpiar</a>
     </div>
   </form>
