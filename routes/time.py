@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, flash, session
+    url_for, flash, session, jsonify
 )
 from sqlalchemy import desc, text, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -248,4 +248,72 @@ def calendar_view():
         month=month,
         month_days=month_days
     )
+
+
+# ------------------------------------------------------------------
+#  PREFERENCIAS DE NOTIFICACIONES POR CORREO
+# ------------------------------------------------------------------
+@time_bp.route("/notifications/preferences", methods=["GET"])
+def get_notification_preferences():
+    """Obtener las preferencias de notificación del usuario actual"""
+    if "user_id" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+
+    user_id = session["user_id"]
+    user = User.query.get_or_404(user_id)
+
+    return jsonify({
+        "email_notifications": user.email_notifications,
+        "notification_days": user.notification_days or "",
+        "notification_time_entry": user.notification_time_entry.strftime("%H:%M") if user.notification_time_entry else "",
+        "notification_time_exit": user.notification_time_exit.strftime("%H:%M") if user.notification_time_exit else ""
+    })
+
+
+@time_bp.route("/notifications/preferences", methods=["POST"])
+def save_notification_preferences():
+    """Guardar las preferencias de notificación del usuario"""
+    if "user_id" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+
+    try:
+        user_id = session["user_id"]
+        user = User.query.get_or_404(user_id)
+
+        data = request.get_json()
+
+        # Actualizar preferencias
+        user.email_notifications = data.get("email_notifications", False)
+        user.notification_days = data.get("notification_days", "")
+
+        # Convertir horarios de string a time
+        entry_time_str = data.get("notification_time_entry", "")
+        exit_time_str = data.get("notification_time_exit", "")
+
+        if entry_time_str:
+            try:
+                user.notification_time_entry = datetime.strptime(entry_time_str, "%H:%M").time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora de entrada inválido"}), 400
+        else:
+            user.notification_time_entry = None
+
+        if exit_time_str:
+            try:
+                user.notification_time_exit = datetime.strptime(exit_time_str, "%H:%M").time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora de salida inválido"}), 400
+        else:
+            user.notification_time_exit = None
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Preferencias guardadas correctamente"
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 

@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
+from flask_mail import Mail
 from models.database import db
 from flask_migrate import Migrate, upgrade as migrate_upgrade
 from routes.auth import auth_bp
@@ -76,8 +77,19 @@ else:
         "max_overflow": 0
     }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Configuración de Flask-Mail
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME'))
+
 # Inicializar extensiones
 db.init_app(app)
+mail = Mail(app)
 
 # Inicializar SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
@@ -209,13 +221,14 @@ def init_scheduler():
     if not SCHEDULER_AVAILABLE:
         app.logger.warning("APScheduler not available - automatic closing disabled")
         return
-        
+
     try:
         scheduler = BackgroundScheduler(daemon=True)
-        
-        # Import the task function
+
+        # Import the task functions
         from tasks.scheduler import auto_close_open_records
-        
+        from tasks.email_service import check_and_send_notifications
+
         # Schedule the auto-close task to run daily at 23:59:59
         scheduler.add_job(
             func=auto_close_open_records,
@@ -224,10 +237,20 @@ def init_scheduler():
             name='Auto-close open time records',
             replace_existing=True
         )
-        
+
+        # Schedule the email notification check to run every 5 minutes
+        scheduler.add_job(
+            func=lambda: check_and_send_notifications(app, mail),
+            trigger=CronTrigger(minute='*/5'),
+            id='email_notifications',
+            name='Check and send email notifications',
+            replace_existing=True
+        )
+
         scheduler.start()
         app.logger.info("Scheduler initialized - Auto-close task scheduled for 23:59:59 daily")
-        
+        app.logger.info("Scheduler initialized - Email notifications check every 5 minutes")
+
         # Shut down the scheduler when exiting the app
         atexit.register(lambda: scheduler.shutdown())
     except Exception as e:
