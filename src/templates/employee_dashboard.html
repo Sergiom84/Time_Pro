@@ -26,9 +26,17 @@
           </p>
         </div>
       </div>
-      <a href="{{ url_for('auth.logout') }}" class="px-6 py-2 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
-        Cerrar Sesión
-      </a>
+      <div class="flex gap-3">
+        <button id="notificationBtn" class="px-4 py-2 rounded-full font-semibold transition-all hover:opacity-80 flex items-center gap-2" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--accent-primary);">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span class="hidden sm:inline">Notificaciones</span>
+        </button>
+        <a href="{{ url_for('auth.logout') }}" class="px-6 py-2 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+          Cerrar Sesión
+        </a>
+      </div>
     </div>
 
     <!-- Mensajes flash -->
@@ -124,6 +132,85 @@
 
   </div>
 
+  <!-- Modal de Notificaciones -->
+  <div id="notificationModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="rounded-2xl p-8 max-w-md w-full" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Configurar Notificaciones</h3>
+        <button id="closeModal" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+      </div>
+
+      <form id="notificationForm">
+        <!-- Activar notificaciones -->
+        <div class="mb-6">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="enableNotifications" class="w-5 h-5 rounded" style="accent-color: var(--accent-primary);">
+            <span class="font-semibold" style="color: var(--text-primary);">Recibir notificaciones por correo</span>
+          </label>
+        </div>
+
+        <div id="notificationSettings" class="space-y-6 hidden">
+          <!-- Días de la semana -->
+          <div>
+            <label class="block mb-3 font-semibold" style="color: var(--text-primary);">Días de la semana:</label>
+            <div class="flex flex-wrap gap-2">
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="L" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Lunes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="M" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Martes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="X" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Miércoles</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="J" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Jueves</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="V" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Viernes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="S" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Sábado</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="D" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Domingo</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Horarios -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block mb-2 font-semibold" style="color: var(--text-primary);">Hora entrada:</label>
+              <input type="time" id="timeEntry" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+            </div>
+            <div>
+              <label class="block mb-2 font-semibold" style="color: var(--text-primary);">Hora salida:</label>
+              <input type="time" id="timeExit" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex gap-3 mt-8">
+          <button type="submit" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+            Guardar
+          </button>
+          <button type="button" id="cancelBtn" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     // Auto-desvanecido de mensajes flash tras 2 segundos
     const flashMessages = document.getElementById('flash-messages');
@@ -134,6 +221,103 @@
         setTimeout(() => flashMessages.remove(), 800);
       }, 2000);
     }
+
+    // === MANEJO DEL MODAL DE NOTIFICACIONES ===
+    const modal = document.getElementById('notificationModal');
+    const notificationBtn = document.getElementById('notificationBtn');
+    const closeModal = document.getElementById('closeModal');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const enableNotifications = document.getElementById('enableNotifications');
+    const notificationSettings = document.getElementById('notificationSettings');
+    const notificationForm = document.getElementById('notificationForm');
+
+    // Abrir modal
+    notificationBtn.addEventListener('click', async () => {
+      modal.classList.remove('hidden');
+      await loadPreferences();
+    });
+
+    // Cerrar modal
+    const closeModalFn = () => {
+      modal.classList.add('hidden');
+    };
+    closeModal.addEventListener('click', closeModalFn);
+    cancelBtn.addEventListener('click', closeModalFn);
+
+    // Mostrar/ocultar opciones al marcar checkbox
+    enableNotifications.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        notificationSettings.classList.remove('hidden');
+      } else {
+        notificationSettings.classList.add('hidden');
+      }
+    });
+
+    // Cargar preferencias actuales
+    async function loadPreferences() {
+      try {
+        const response = await fetch('/notifications/preferences');
+        const data = await response.json();
+
+        enableNotifications.checked = data.email_notifications;
+        if (data.email_notifications) {
+          notificationSettings.classList.remove('hidden');
+        }
+
+        // Cargar días seleccionados
+        const selectedDays = data.notification_days.split(',').map(d => d.trim());
+        document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+          checkbox.checked = selectedDays.includes(checkbox.value);
+        });
+
+        // Cargar horarios
+        document.getElementById('timeEntry').value = data.notification_time_entry || '';
+        document.getElementById('timeExit').value = data.notification_time_exit || '';
+
+      } catch (error) {
+        console.error('Error al cargar preferencias:', error);
+      }
+    }
+
+    // Guardar preferencias
+    notificationForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const enabled = enableNotifications.checked;
+      const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked'))
+        .map(cb => cb.value)
+        .join(',');
+      const timeEntry = document.getElementById('timeEntry').value;
+      const timeExit = document.getElementById('timeExit').value;
+
+      try {
+        const response = await fetch('/notifications/preferences', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email_notifications: enabled,
+            notification_days: selectedDays,
+            notification_time_entry: timeEntry,
+            notification_time_exit: timeExit
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Mostrar mensaje de éxito
+          alert('Preferencias guardadas correctamente');
+          closeModalFn();
+        } else {
+          alert('Error: ' + (data.error || 'No se pudieron guardar las preferencias'));
+        }
+      } catch (error) {
+        console.error('Error al guardar preferencias:', error);
+        alert('Error al guardar las preferencias');
+      }
+    });
   </script>
 </body>
 </html>

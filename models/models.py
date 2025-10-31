@@ -28,6 +28,13 @@ class User(db.Model):
     hire_date = db.Column(db.Date, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
     theme_preference = db.Column(db.String(50), default='dark-turquoise', nullable=False)
+
+    # Campos para notificaciones por correo
+    email_notifications = db.Column(db.Boolean, default=False, nullable=False)
+    notification_days = db.Column(db.String(100), nullable=True)  # Formato: "L,M,X,J,V"
+    notification_time_entry = db.Column(db.Time, nullable=True)  # Hora de aviso para entrada
+    notification_time_exit = db.Column(db.Time, nullable=True)   # Hora de aviso para salida
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     time_records = db.relationship(
