@@ -13,20 +13,21 @@ class User(db.Model):
     weekly_hours = db.Column(db.Integer, nullable=False, default=0)
     centro = db.Column(
         db.Enum(
-            "-- Sin categoría --", "Avenida de Brasil", "Hortaleza", "Las Tablas", "Majadahonda",
+            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3",
             name="centro_enum"
         ),
         nullable=True
     )
     categoria = db.Column(
         db.Enum(
-            "Cocina", "Delivery", "Reparto", "Sala",
+            "Coordinador", "Empleado", "Gestor",
             name="category_enum"
         ),
         nullable=True
     )
     hire_date = db.Column(db.Date, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
+    theme_preference = db.Column(db.String(50), default='dark-turquoise', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     time_records = db.relationship(
@@ -107,3 +108,40 @@ class EmployeeStatus(db.Model):
             f"<EmployeeStatus {self.id}-U{self.user_id} "
             f"{self.date} {self.status}>"
         )
+
+
+class SystemConfig(db.Model):
+    """Modelo para almacenar configuración del sistema"""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(200))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
+
+    @classmethod
+    def get_theme(cls):
+        """Obtiene el tema actual del sistema"""
+        config = cls.query.filter_by(key='theme').first()
+        if config:
+            return config.value
+        return 'dark-turquoise'  # Tema por defecto
+
+    @classmethod
+    def set_theme(cls, theme_name, user_id=None):
+        """Establece el tema del sistema"""
+        config = cls.query.filter_by(key='theme').first()
+        if not config:
+            config = cls(key='theme', value=theme_name, description='Tema visual del sistema')
+            db.session.add(config)
+        else:
+            config.value = theme_name
+
+        if user_id:
+            config.updated_by = user_id
+        config.updated_at = datetime.utcnow()
+        db.session.commit()
+        return config
+
+    def __repr__(self):
+        return f"<SystemConfig {self.key}={self.value}>"

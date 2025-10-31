@@ -27,10 +27,9 @@
             <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
           {% else %}
             <option value="">Todos</option>
-            <option value="Avenida de Brasil">Avenida de Brasil</option>
-            <option value="Hortaleza">Hortaleza</option>
-            <option value="Las Tablas">Las Tablas</option>
-            <option value="Majadahonda">Majadahonda</option>
+            <option value="Centro 1">Centro 1</option>
+            <option value="Centro 2">Centro 2</option>
+            <option value="Centro 3">Centro 3</option>
           {% endif %}
         </select>
       </div>
@@ -60,7 +59,8 @@
       <!-- Botones -->
       <div class="md:col-span-4 flex flex-wrap gap-2 mt-2 items-center">
         <button type="submit"
-                class="bg-fuchsia-700 hover:bg-fuchsia-800 px-6 py-2 rounded text-white">
+                class="px-6 py-2 rounded text-white transition-all hover:opacity-90"
+                style="background-color: var(--accent-primary);">
           Filtrar
         </button>
         <button type="button" id="reset-filters"

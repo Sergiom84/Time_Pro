@@ -44,9 +44,11 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
-                {% endfor %}
+                <div id="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
             {% endif %}
         {% endwith %}
 
@@ -73,5 +75,17 @@
             </form>
         </div>
     </div>
+
+    <script>
+        // Auto-desvanecido de mensajes flash tras 2 segundos
+        const flashMessages = document.getElementById('flash-messages');
+        if (flashMessages) {
+            setTimeout(() => {
+                flashMessages.style.transition = 'opacity 0.6s ease';
+                flashMessages.style.opacity = '0';
+                setTimeout(() => flashMessages.remove(), 800);
+            }, 2000);
+        }
+    </script>
 </body>
 </html>

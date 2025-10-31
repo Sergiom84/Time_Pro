@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Fichaje Laboral{% endblock %}</title>
+
+  <!-- Sistema de Temas CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+
+  <!-- Socket.IO para sincronización en tiempo real -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -47,7 +53,7 @@
   </style>
 </head>
 
-<body class="bg-black font-sans text-gray-100">
+<body data-theme="{{ current_theme }}" class="font-sans transition-all duration-300">
   <div class="flex min-h-screen">
     <style>
       /* Corrige salto visual entre sidebar y topbar en escritorio */
@@ -59,9 +65,9 @@
 
     {% if session.get('is_admin') %}
     <!-- Sidebar -->
-    <aside id="sidebar" class="hidden md:flex flex-col w-56 bg-gray-900 text-sushi-100 flex-shrink-0 fixed md:static z-20 h-full md:h-auto">
-      <div class="px-6 py-3 font-brand text-xl text-center border-b border-gray-700">Menú</div>
-      <nav class="mt-4 flex flex-col gap-1 px-2">
+    <aside id="sidebar" class="hidden md:flex flex-col w-56 bg-secondary text-primary flex-shrink-0 fixed md:static z-20 h-full md:h-auto border-r border-primary overflow-y-auto">
+      <div class="px-6 py-3 font-brand text-xl text-center border-b border-primary text-primary">Menú</div>
+      <nav class="mt-4 flex flex-col gap-1 px-2 flex-1">
         {% set links = [
           {'endpoint': 'admin.dashboard',    'label': 'Dashboard'},
           {'endpoint': 'admin.manage_users', 'label': 'Gestionar Usuarios'},
@@ -72,12 +78,68 @@
         {% for link in links %}
           {% set active = request.endpoint.startswith(link.endpoint) %}
           <a href="{{ url_for(link.endpoint) }}"
-             class="sidebar-link {{ active and 'bg-gray-800 text-white' or 'text-sushi-200 hover:bg-gray-800 hover:text-white' }}"
+             class="sidebar-link {{ active and 'bg-accent-primary text-inverse' or 'text-primary hover:bg-hover hover:accent-primary' }}"
              aria-current="{{ active and 'page' or '' }}">
             {{ link.label }}
           </a>
         {% endfor %}
       </nav>
+
+      <!-- Selector de Tema -->
+      <div class="border-t border-primary mt-4 p-4">
+        <h3 class="text-xs font-bold uppercase text-muted mb-3">Personalización</h3>
+
+        <!-- Botón para abrir el selector de temas -->
+        <button id="theme-toggle-btn" class="w-full px-4 py-2 rounded text-primary bg-hover border border-primary text-sm font-medium transition-all hover:opacity-90 flex items-center justify-between">
+          <span>Cambiar Tema</span>
+          <svg id="theme-arrow" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        <!-- Panel desplegable de temas (oculto por defecto) -->
+        <div id="theme-dropdown" class="hidden mt-2 p-3 rounded bg-secondary border border-primary">
+          <div class="theme-selector flex flex-col gap-3">
+            <!-- Tema Oscuro Turquesa -->
+            <div class="text-center cursor-pointer hover:opacity-80 transition-opacity" onclick="selectAndCloseTheme('dark-turquoise')">
+              <div class="theme-option dark-turquoise {{ 'active' if current_theme == 'dark-turquoise' }}"
+                   data-theme="dark-turquoise"
+                   title="Tema Oscuro Turquesa"
+                   style="margin: 0 auto;">
+              </div>
+              <span class="text-xs text-muted mt-1 block">Oscuro</span>
+            </div>
+
+            <!-- Tema Claro Minimalista -->
+            <div class="text-center cursor-pointer hover:opacity-80 transition-opacity" onclick="selectAndCloseTheme('light-minimal')">
+              <div class="theme-option light-minimal {{ 'active' if current_theme == 'light-minimal' }}"
+                   data-theme="light-minimal"
+                   title="Tema Claro Minimalista"
+                   style="margin: 0 auto;">
+              </div>
+              <span class="text-xs text-muted mt-1 block">Claro</span>
+            </div>
+
+            <!-- Tema Gradiente Turquesa -->
+            <div class="text-center cursor-pointer hover:opacity-80 transition-opacity" onclick="selectAndCloseTheme('turquoise-gradient')">
+              <div class="theme-option turquoise-gradient {{ 'active' if current_theme == 'turquoise-gradient' }}"
+                   data-theme="turquoise-gradient"
+                   title="Tema Gradiente Turquesa"
+                   style="margin: 0 auto;">
+              </div>
+              <span class="text-xs text-muted mt-1 block">Gradiente</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-muted mt-3 text-center">
+          Tema actual: <span id="current-theme-label" class="text-primary font-bold">
+            {% if current_theme == 'dark-turquoise' %}Oscuro
+            {% elif current_theme == 'light-minimal' %}Claro
+            {% else %}Gradiente{% endif %}
+          </span>
+        </p>
+      </div>
     </aside>
     {% endif %}
 
@@ -86,7 +148,7 @@
     <div class="flex-1 flex flex-col ml-0 transition-all duration-300 ease-in-out">
 
       <!-- Topbar -->
-      <header class="bg-white dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <header class="bg-secondary px-4 py-3 border-b border-primary flex items-center justify-between shadow-md">
         <div class="flex items-center gap-4">
           {% if session.get('is_admin') %}
           <!-- Botón hamburguesa solo en móvil -->
@@ -97,14 +159,25 @@
             </svg>
           </button>
           {% endif %}
-          <h1 class="text-2xl font-semibold font-brand text-gray-700 dark:text-gray-200">
+          <h1 class="text-2xl font-semibold font-brand text-primary">
             {% block header %}{% endblock %}
           </h1>
         </div>
 
         <div class="flex items-center gap-4">
+          {% if session.get('is_admin') and session.get('admin_centro') %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
+                  style="background-color: var(--accent-primary);">
+              {{ session.get('admin_centro') }}
+            </span>
+          {% elif session.get('is_admin') %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
+                  style="background-color: var(--accent-primary);">
+              Super Admin
+            </span>
+          {% endif %}
           {% if greeting %}
-            <span class="text-gray-600 dark:text-gray-300 font-medium text-sm">
+            <span class="text-primary font-medium text-sm">
               {{ greeting }}
             </span>
           {% endif %}
@@ -149,14 +222,95 @@
       });
     }
 
-    // Auto-desvanecido de flashes globales tras 3s
+    // Auto-desvanecido de flashes globales tras 2s
     const flashes = document.getElementById('global-flashes');
     if (flashes) {
       setTimeout(() => {
         flashes.style.transition = 'opacity 0.6s ease';
         flashes.style.opacity = '0';
         setTimeout(() => flashes.remove(), 800);
-      }, 3000);
+      }, 2000);
+    }
+
+    // Inicializar Socket.IO para sincronización de temas
+    const socket = io();
+
+    // Escuchar cambios de tema desde el servidor
+    socket.on('theme_update', function(data) {
+      const newTheme = data.theme;
+      const body = document.body;
+
+      // Aplicar animación de transición
+      body.classList.add('theme-changing');
+
+      // Cambiar el tema
+      body.setAttribute('data-theme', newTheme);
+
+      // Remover animación después de completarse
+      setTimeout(() => {
+        body.classList.remove('theme-changing');
+      }, 600);
+
+      // Si hay un selector de tema, actualizar su estado
+      const themeOptions = document.querySelectorAll('.theme-option');
+      themeOptions.forEach(option => {
+        option.classList.remove('active');
+        if (option.dataset.theme === newTheme) {
+          option.classList.add('active');
+        }
+      });
+    });
+
+    // Función para cambiar el tema (para el selector de temas)
+    function changeTheme(themeName) {
+      socket.emit('change_theme', { theme: themeName }, function(response) {
+        if (!response.success) {
+          console.error('Error cambiando tema:', response.message);
+        }
+      });
+    }
+
+    // Toggle del desplegable de temas
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeDropdown = document.getElementById('theme-dropdown');
+    const themeArrow = document.getElementById('theme-arrow');
+
+    if (themeToggleBtn && themeDropdown) {
+      themeToggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const isHidden = themeDropdown.classList.contains('hidden');
+
+        if (isHidden) {
+          themeDropdown.classList.remove('hidden');
+          themeArrow.style.transform = 'rotate(180deg)';
+        } else {
+          themeDropdown.classList.add('hidden');
+          themeArrow.style.transform = 'rotate(0deg)';
+        }
+      });
+    }
+
+    // Función para seleccionar tema y cerrar el desplegable
+    function selectAndCloseTheme(themeName) {
+      // Cambiar el tema
+      changeTheme(themeName);
+
+      // Actualizar la etiqueta del tema actual
+      const currentThemeLabel = document.getElementById('current-theme-label');
+      if (currentThemeLabel) {
+        const themeNames = {
+          'dark-turquoise': 'Oscuro',
+          'light-minimal': 'Claro',
+          'turquoise-gradient': 'Gradiente'
+        };
+        currentThemeLabel.textContent = themeNames[themeName] || themeName;
+      }
+
+      // Cerrar el desplegable
+      if (themeDropdown && themeArrow) {
+        themeDropdown.classList.add('hidden');
+        themeArrow.style.transform = 'rotate(0deg)';
+      }
     }
   </script>
 </body>

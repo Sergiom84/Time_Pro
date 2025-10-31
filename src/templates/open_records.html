@@ -37,8 +37,8 @@
           <form method="POST" class="flex gap-2 items-center justify-center">
             <input type="hidden" name="record_id" value="{{ r.id }}">
             <input type="datetime-local" name="close_time" required class="text-black"
-                   value="{{ r.check_in.strftime('%Y-%m-%dT%H:%M') }}">
-            <button class="bg-fuchsia-700 text-white rounded px-2 py-1 text-sm hover:bg-fuchsia-800">Cerrar</button>
+                   value="{{ now.strftime('%Y-%m-%dT%H:%M') }}">
+            <button class="text-white rounded px-2 py-1 text-sm transition-all hover:opacity-90" style="background-color: var(--accent-primary);">Cerrar</button>
           </form>
         </td>
         <td class="px-4 py-2 text-center">

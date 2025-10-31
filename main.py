@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 from models.database import db
 from flask_migrate import Migrate, upgrade as migrate_upgrade
 from routes.auth import auth_bp
@@ -31,17 +32,25 @@ app = Flask(
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
 # Configuración de la base de datos
-# Forzamos el uso de la BD de Render para las pruebas locales (según tu petición)
-render_dsn = (
-    "postgresql://timetracker_db_ntuk_user:"
-    "iRlZxk7xdpA38AMYOIOZMt2lsyL1ST8l@"
-    "dpg-d2h0c78dl3ps73fq6s80-a.oregon-postgres.render.com:5432/"
-    "timetracker_db_ntuk?sslmode=require"
+# Usando Supabase como base de datos principal
+# La contraseña contiene un @ que necesita ser URL-encoded
+from urllib.parse import quote_plus
+
+supabase_password = "OPt0u_oag6Pir5MR0@"
+supabase_password_encoded = quote_plus(supabase_password)
+
+supabase_dsn = (
+    f"postgresql://postgres.gqesfclbingbihakiojm:"
+    f"{supabase_password_encoded}@"
+    f"aws-1-eu-west-1.pooler.supabase.com:6543/"
+    f"postgres"
 )
-uri = os.getenv("RENDER_DATABASE_URL") or os.getenv("DATABASE_URL")
-# Si la URI no existe o apunta a MySQL, forzamos la de Render
-if not uri or uri.lower().startswith("mysql"):
-    uri = render_dsn
+
+# Configuración de Supabase (para futuro uso si necesitas API)
+SUPABASE_URL = "https://gqesfclbingbihakiojm.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxZXNmY2xiaW5nYmloYWtpb2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4Mjc2NzEsImV4cCI6MjA3NzQwMzY3MX0.FmhKu9LVids3b0cs7Q0GssEvjJcEOCkVifalx1bzxgY"
+
+uri = os.getenv("DATABASE_URL") or supabase_dsn
 # Normalizar si viniera como postgres://
 uri = uri.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
@@ -69,6 +78,10 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Inicializar extensiones
 db.init_app(app)
+
+# Inicializar SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
 # Log rápido del driver efectivo
 try:
     with app.app_context():
@@ -95,7 +108,7 @@ def shutdown_session(exception=None):
 @app.context_processor
 def inject_user():
     from flask import session
-    from models.models import User
+    from models.models import User, SystemConfig
     from datetime import datetime
 
     user = None
@@ -117,7 +130,13 @@ def inject_user():
             else:
                 greeting = f"Buenas noches, {first_name}"
 
-    return dict(current_user=user, greeting=greeting)
+    # Obtener el tema actual del usuario (si está autenticado) o el tema por defecto
+    if user:
+        current_theme = user.theme_preference
+    else:
+        current_theme = 'dark-turquoise'  # Tema por defecto para usuarios no autenticados
+
+    return dict(current_user=user, greeting=greeting, current_theme=current_theme)
 
 # Registrar blueprints
 app.register_blueprint(auth_bp)
@@ -129,6 +148,42 @@ app.register_blueprint(export_bp)
 @app.route('/')
 def index():
     return render_template("welcome.html")
+
+# WebSocket events para temas individuales (sin sincronización global)
+@socketio.on('connect')
+def handle_connect():
+    """Manejar conexión de clientes - Ya no es necesario emitir tema inicial"""
+    pass
+
+@socketio.on('change_theme')
+def handle_theme_change(data):
+    """Manejar cambio de tema individual del usuario"""
+    from flask import session
+    from models.models import User
+
+    # Verificar que el usuario está autenticado
+    user_id = session.get('user_id')
+    if not user_id:
+        return {'success': False, 'message': 'No autenticado'}
+
+    theme_name = data.get('theme')
+    valid_themes = ['dark-turquoise', 'light-minimal', 'turquoise-gradient']
+
+    if theme_name not in valid_themes:
+        return {'success': False, 'message': 'Tema no válido'}
+
+    # Guardar tema en el usuario actual (no en SystemConfig)
+    user = User.query.get(user_id)
+    if not user:
+        return {'success': False, 'message': 'Usuario no encontrado'}
+
+    user.theme_preference = theme_name
+    db.session.commit()
+
+    # Solo notificar al usuario actual (sin broadcast)
+    emit('theme_update', {'theme': theme_name})
+
+    return {'success': True, 'message': f'Tema cambiado a {theme_name}'}
 
 def init_db():
     """Initialize database tables and run migrations"""
@@ -186,7 +241,7 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     # En producción usar debug=False
     debug_mode = not (os.getenv('DYNO') or os.getenv('RENDER'))
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    socketio.run(app, host='0.0.0.0', port=port, debug=debug_mode)
 else:
     # Cuando se ejecuta con gunicorn, inicializar la base de datos después de crear la app
     init_db()

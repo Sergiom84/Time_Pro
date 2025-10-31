@@ -4,32 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Panel de Empleado - Time Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            'turquoise': '#00CED1',
-            'app-grey': '#4A4A4A',
-          }
-        }
-      }
-    }
-  </script>
 </head>
-<body class="bg-white text-gray-900 font-sans min-h-screen m-0 p-6 sm:p-8">
+<body data-theme="dark-turquoise" class="font-sans min-h-screen m-0 p-6 sm:p-8" style="background-color: var(--bg-primary); color: var(--text-primary)">
   <div class="mx-auto max-w-5xl">
 
     <!-- Encabezado -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-      <div class="flex items-center gap-4">
-        <p class="text-gray-400 text-sm italic">Aquí tu logo</p>
-        <h1 class="text-turquoise text-2xl sm:text-3xl font-semibold">
-          Bienvenido, {{ user.full_name }}
-        </h1>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
+      <div class="flex items-center gap-6">
+        <!-- Logo círculo con borde turquesa -->
+        <div class="w-20 h-20 rounded-full border-4 bg-gray-300 flex items-center justify-center" style="border-color: var(--accent-primary);">
+          <span class="text-gray-500 text-sm font-medium">Logo</span>
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-4xl font-bold" style="color: var(--accent-primary);">
+            Time Tracker
+          </h1>
+          <p class="text-sm" style="color: var(--text-secondary);">
+            Bienvenido, {{ user.full_name }}
+          </p>
+        </div>
       </div>
-      <a href="{{ url_for('auth.logout') }}" class="text-turquoise hover:underline">
+      <a href="{{ url_for('auth.logout') }}" class="px-6 py-2 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
         Cerrar Sesión
       </a>
     </div>
@@ -37,12 +34,13 @@
     <!-- Mensajes flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <div class="mb-6 space-y-2">
+        <div id="flash-messages" class="mb-6 space-y-3">
           {% for category, message in messages %}
-            <div class="p-3 rounded-md text-sm
-              {% if category == 'danger' %} bg-red-500 border-red-700
-              {% elif category == 'success' %} bg-green-500 border-green-700
-              {% else %} bg-blue-500 border-blue-700{% endif %} text-white">
+            <div class="p-4 rounded-lg text-sm font-medium
+              {% if category == 'danger' %} bg-red-500 border-l-4 border-red-700
+              {% elif category == 'success' %} bg-green-500 border-l-4 border-green-700
+              {% else %} border-l-4 {% endif %}"
+              style="{% if category == 'danger' %}{% elif category == 'success' %}{% else %}background-color: var(--bg-secondary); border-color: var(--accent-primary); color: var(--text-primary);{% endif %} color: white;">
               {{ message }}
             </div>
           {% endfor %}
@@ -51,18 +49,19 @@
     {% endwith %}
 
     <!-- Estado Actual -->
-    <div class="mb-8 p-6 border border-gray-300 rounded-lg bg-gray-50">
-      <h3 class="text-xl font-medium mb-4 text-turquoise">Estado Actual</h3>
+    <div class="mb-8 p-8 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <h3 class="text-2xl font-bold mb-6" style="color: var(--accent-primary);">Estado Actual</h3>
       {% if today_record %}
-        <p class="mb-2 text-yellow-600">¡Tienes una sesión de fichaje abierta!</p>
-        <p class="mb-1"><strong>Centro:</strong> {{ user.centro or '-' }}</p>
-        <p class="mb-1">
-          <strong>Entrada:</strong>
-          {{ today_record.check_in.strftime("%d-%m-%Y %H:%M:%S") }}
-        </p>
-        <p><strong>Salida:</strong> Pendiente</p>
+        <div class="mb-4 p-3 rounded-lg" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+          <p class="font-semibold">✓ Sesión de fichaje activa</p>
+        </div>
+        <div class="space-y-3" style="color: var(--text-primary);">
+          <p><strong style="color: var(--accent-primary);">Centro:</strong> {{ user.centro or '-' }}</p>
+          <p><strong style="color: var(--accent-primary);">Entrada:</strong> {{ today_record.check_in.strftime("%d-%m-%Y %H:%M:%S") }}</p>
+          <p><strong style="color: var(--accent-primary);">Salida:</strong> <span style="color: var(--text-secondary);">Pendiente</span></p>
+        </div>
       {% else %}
-        <p class="text-gray-600">No tienes ninguna sesión de fichaje activa.</p>
+        <p style="color: var(--text-secondary);">No tienes ninguna sesión de fichaje activa.</p>
       {% endif %}
       {% include 'check_in_out_form.html' %}
     </div>
@@ -124,5 +123,17 @@
     #}
 
   </div>
+
+  <script>
+    // Auto-desvanecido de mensajes flash tras 2 segundos
+    const flashMessages = document.getElementById('flash-messages');
+    if (flashMessages) {
+      setTimeout(() => {
+        flashMessages.style.transition = 'opacity 0.6s ease';
+        flashMessages.style.opacity = '0';
+        setTimeout(() => flashMessages.remove(), 800);
+      }, 2000);
+    }
+  </script>
 </body>
 </html>
