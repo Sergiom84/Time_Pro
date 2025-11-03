@@ -34,6 +34,7 @@ class User(db.Model):
     notification_days = db.Column(db.String(100), nullable=True)  # Formato: "L,M,X,J,V"
     notification_time_entry = db.Column(db.Time, nullable=True)  # Hora de aviso para entrada
     notification_time_exit = db.Column(db.Time, nullable=True)   # Hora de aviso para salida
+    additional_notification_email = db.Column(db.String(120), nullable=True)  # Correo adicional para notificaciones
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -115,6 +116,86 @@ class EmployeeStatus(db.Model):
             f"<EmployeeStatus {self.id}-U{self.user_id} "
             f"{self.date} {self.status}>"
         )
+
+
+class WorkPause(db.Model):
+    """Modelo para registrar pausas/descansos durante la jornada laboral"""
+    __tablename__ = "work_pause"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    time_record_id = db.Column(db.Integer, db.ForeignKey("time_record.id", ondelete="CASCADE"), nullable=False)
+    pause_type = db.Column(
+        db.Enum(
+            "Descanso", "Hora del almuerzo", "Asuntos médicos",
+            "Desplazamientos", "Otros",
+            name="pause_type_enum"
+        ),
+        nullable=False
+    )
+    pause_start = db.Column(db.DateTime, nullable=False)
+    pause_end = db.Column(db.DateTime, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Campos para archivos adjuntos
+    attachment_url = db.Column(db.String(500), nullable=True)
+    attachment_filename = db.Column(db.String(255), nullable=True)
+    attachment_type = db.Column(db.String(50), nullable=True)
+    attachment_size = db.Column(db.Integer, nullable=True)
+
+    # Relaciones
+    user_rel = db.relationship("User", backref="work_pauses", lazy=True)
+    time_record_rel = db.relationship("TimeRecord", backref="pauses", lazy=True)
+
+    def __repr__(self):
+        return f"<WorkPause {self.id} - {self.pause_type}>"
+
+
+class LeaveRequest(db.Model):
+    """Modelo para solicitudes de vacaciones, bajas y ausencias"""
+    __tablename__ = "leave_request"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    request_type = db.Column(
+        db.Enum(
+            "Vacaciones", "Baja médica", "Ausencia justificada",
+            "Ausencia injustificada", "Permiso especial",
+            name="leave_type_enum"
+        ),
+        nullable=False
+    )
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.Text, nullable=True)
+    status = db.Column(
+        db.Enum(
+            "Pendiente", "Aprobado", "Rechazado", "Cancelado", "Enviado", "Recibido",
+            name="request_status_enum"
+        ),
+        nullable=False,
+        default="Pendiente"
+    )
+    approved_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    approval_date = db.Column(db.DateTime, nullable=True)
+    read_by_admin = db.Column(db.Boolean, default=False, nullable=False)
+    read_date = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Campos para archivos adjuntos
+    attachment_url = db.Column(db.String(500), nullable=True)
+    attachment_filename = db.Column(db.String(255), nullable=True)
+    attachment_type = db.Column(db.String(50), nullable=True)
+    attachment_size = db.Column(db.Integer, nullable=True)
+
+    # Relaciones
+    user_rel = db.relationship("User", foreign_keys=[user_id], backref="leave_requests", lazy=True)
+    approver_rel = db.relationship("User", foreign_keys=[approved_by], backref="approved_requests", lazy=True)
+
+    def __repr__(self):
+        return f"<LeaveRequest {self.id} - {self.request_type} - {self.status}>"
 
 
 class SystemConfig(db.Model):

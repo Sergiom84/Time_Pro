@@ -15,14 +15,48 @@
         placeholder="Añade aquí alguna nota sobre tu jornada…"
       >{{ '' }}</textarea>
     </div>
-    <button
-      type="submit"
-      class="w-full inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-full text-white transition-all hover:opacity-90 active:transform active:scale-95"
-      style="background-color: #ff4444;"
-    >
-      📤 Fichar Salida
-    </button>
+
+    <!-- Botones de acción en la misma línea -->
+    <div class="flex gap-3">
+      <!-- Botón de pausa/descanso -->
+      <button
+        type="button"
+        id="pauseBtn"
+        class="flex-1 inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-full text-white transition-all hover:opacity-90 active:transform active:scale-95"
+        style="background-color: #CA8A04;"
+        onclick="openPauseModal()"
+      >
+        Descanso
+      </button>
+
+      <!-- Botón de fichar salida -->
+      <button
+        type="submit"
+        class="flex-1 inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-full text-white transition-all hover:opacity-90 active:transform active:scale-95"
+        style="background-color: #EA580C;"
+      >
+        Fichar Salida
+      </button>
+    </div>
   </form>
+
+  <!-- Mostrar pausas activas -->
+  <div id="activePause" class="hidden mt-4 p-4 rounded-lg" style="background-color: rgba(202, 138, 4, 0.15); border: 2px solid #CA8A04;">
+    <h4 class="font-bold mb-2" style="color: var(--accent-primary);">Pausa Activa</h4>
+    <p class="text-sm" style="color: var(--text-primary);">
+      <strong>Tipo:</strong> <span id="pauseType"></span><br>
+      <strong>Inicio:</strong> <span id="pauseStartTime"></span><br>
+      <strong>Duración:</strong> <span id="pauseDuration">00:00</span>
+    </p>
+    <button
+      type="button"
+      onclick="endPause()"
+      class="mt-3 w-full py-2 px-4 font-bold rounded-full text-white transition-all hover:opacity-90"
+      style="background-color: var(--accent-primary);"
+    >
+      Reanudar Trabajo
+    </button>
+  </div>
 
 {% else %}
   <!-- Formulario de fichar entrada -->
@@ -32,7 +66,7 @@
       class="w-full inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-full text-white transition-all hover:opacity-90 active:transform active:scale-95"
       style="background-color: var(--accent-primary);"
     >
-      ⏰ Fichar Entrada
+      Fichar Entrada
     </button>
   </form>
 {% endif %}
