@@ -4,7 +4,7 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime, date, timedelta
-from models.models import User, TimeRecord, EmployeeStatus, SystemConfig
+from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause
 from models.database import db
 
 admin_bp = Blueprint(
@@ -156,12 +156,21 @@ def dashboard():
         week_acc[uid] = curr
         rem = weekly_secs - curr
 
+        # Buscar pausa activa del usuario si el registro está abierto
+        active_pause = None
+        if rec.check_in and not rec.check_out:
+            active_pause = WorkPause.query.filter_by(
+                user_id=uid,
+                pause_end=None
+            ).order_by(WorkPause.id.desc()).first()
+
         records_with_accum.append({
             "record": rec,
             "duration_formatted": format_timedelta(dur) if dur else "-",
             "remaining_formatted": format_timedelta(timedelta(seconds=abs(int(rem)))),
             "is_over": rem < 0,
-            "is_open": rec.check_in and not rec.check_out
+            "is_open": rec.check_in and not rec.check_out,
+            "active_pause": active_pause
         })
 
     records_with_accum.reverse()
@@ -854,5 +863,369 @@ def close_today_records():
         flash("La funcionalidad de cierre automático no está disponible.", "warning")
     except Exception as e:
         flash(f"Error al cerrar registros: {str(e)}", "danger")
-    
+
     return redirect(url_for("admin.open_records"))
+
+
+# --------------------------------------------------------------------
+#  GESTIÓN DE SOLICITUDES DE IMPUTACIONES
+# --------------------------------------------------------------------
+@admin_bp.route("/leave_requests")
+@admin_required
+def leave_requests():
+    """Ver y gestionar solicitudes de vacaciones/bajas/ausencias"""
+    centro_admin = get_admin_centro()
+
+    # Obtener filtros de la URL
+    filter_centro = request.args.get("centro", "all")
+    filter_categoria = request.args.get("categoria", "all")
+    filter_usuario = request.args.get("usuario", "")
+
+    # Navegación por fechas
+    filter_date = request.args.get("date", date.today().isoformat())
+
+    try:
+        filter_date = datetime.strptime(filter_date, "%Y-%m-%d").date()
+    except ValueError:
+        filter_date = date.today()
+
+    # Obtener todas las solicitudes pendientes (incluye "Pendiente" y "Enviado")
+    query = (
+        LeaveRequest.query
+        .join(User, LeaveRequest.user_id == User.id)
+        .filter(LeaveRequest.status.in_(["Pendiente", "Enviado"]))
+    )
+
+    # Aplicar filtros
+    if centro_admin:
+        query = query.filter(User.centro == centro_admin)
+    elif filter_centro != "all":
+        query = query.filter(User.centro == filter_centro)
+
+    if filter_categoria != "all":
+        query = query.filter(User.categoria == filter_categoria)
+
+    if filter_usuario:
+        query = query.filter(
+            db.or_(
+                User.full_name.ilike(f"%{filter_usuario}%"),
+                User.username.ilike(f"%{filter_usuario}%")
+            )
+        )
+
+    pending_requests = query.order_by(LeaveRequest.created_at.desc()).all()
+
+    # Marcar solicitudes de bajas/ausencias como "Recibido" cuando el admin las ve
+    leave_types = ["Baja médica", "Ausencia justificada", "Ausencia injustificada"]
+    for leave_req in pending_requests:
+        if leave_req.request_type in leave_types and leave_req.status == "Enviado":
+            leave_req.status = "Recibido"
+            leave_req.read_by_admin = True
+            leave_req.read_date = datetime.now()
+
+    # Guardar cambios si hubo actualizaciones
+    try:
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    # Obtener historial de solicitudes procesadas para la fecha filtrada
+    history_query = (
+        LeaveRequest.query
+        .join(User, LeaveRequest.user_id == User.id)
+        .filter(LeaveRequest.status.in_(["Aprobado", "Rechazado", "Cancelado", "Recibido"]))
+    )
+
+    # Aplicar filtros al historial
+    if centro_admin:
+        history_query = history_query.filter(User.centro == centro_admin)
+    elif filter_centro != "all":
+        history_query = history_query.filter(User.centro == filter_centro)
+
+    if filter_categoria != "all":
+        history_query = history_query.filter(User.categoria == filter_categoria)
+
+    if filter_usuario:
+        history_query = history_query.filter(
+            db.or_(
+                User.full_name.ilike(f"%{filter_usuario}%"),
+                User.username.ilike(f"%{filter_usuario}%")
+            )
+        )
+
+    # Filtrar histórico por el día seleccionado
+    history_query = history_query.filter(
+        db.func.date(LeaveRequest.created_at) == filter_date
+    )
+
+    history_requests = history_query.order_by(
+        LeaveRequest.updated_at.desc()
+    ).all()
+
+    # Calcular fechas de navegación
+    prev_date = (filter_date - timedelta(days=1)).isoformat()
+    next_date = (filter_date + timedelta(days=1)).isoformat()
+    today_iso = date.today().isoformat()
+    is_today = filter_date == date.today()
+
+    # Obtener lista de centros y categorías para los filtros
+    centros = get_centros_disponibles()
+    categorias = ["Coordinador", "Empleado", "Gestor"]
+
+    return render_template(
+        "admin_leave_requests.html",
+        pending_requests=pending_requests,
+        history_requests=history_requests,
+        centros=centros,
+        categorias=categorias,
+        filter_centro=filter_centro,
+        filter_categoria=filter_categoria,
+        filter_usuario=filter_usuario,
+        filter_date=filter_date,
+        prev_date=prev_date,
+        next_date=next_date,
+        today_iso=today_iso,
+        is_today=is_today,
+        centro_admin=centro_admin
+    )
+
+
+@admin_bp.route("/leave_requests/approve/<int:request_id>", methods=["POST"])
+@admin_required
+def approve_leave_request(request_id):
+    """Aprobar una solicitud de imputación"""
+    try:
+        centro_admin = get_admin_centro()
+        admin_id = session.get("user_id")
+
+        # Buscar la solicitud
+        leave_request = LeaveRequest.query.get_or_404(request_id)
+
+        # Verificar permisos
+        if centro_admin:
+            user = User.query.get(leave_request.user_id)
+            if user.centro != centro_admin:
+                flash("No tienes permisos para aprobar esta solicitud.", "danger")
+                return redirect(url_for("admin.leave_requests"))
+
+        # Aprobar la solicitud
+        leave_request.status = "Aprobado"
+        leave_request.approved_by = admin_id
+        leave_request.approval_date = datetime.now()
+
+        # Crear EmployeeStatus para los días solicitados
+        status_map = {
+            "Vacaciones": "Vacaciones",
+            "Baja médica": "Baja",
+            "Ausencia justificada": "Ausente",
+            "Ausencia injustificada": "Ausente",
+            "Permiso especial": "Ausente"
+        }
+
+        status = status_map.get(leave_request.request_type, "Ausente")
+        current_date = leave_request.start_date
+
+        while current_date <= leave_request.end_date:
+            # Verificar si ya existe un status para ese día
+            existing_status = EmployeeStatus.query.filter_by(
+                user_id=leave_request.user_id,
+                date=current_date
+            ).first()
+
+            if existing_status:
+                existing_status.status = status
+                existing_status.notes = f"Solicitud aprobada: {leave_request.request_type}"
+            else:
+                new_status = EmployeeStatus(
+                    user_id=leave_request.user_id,
+                    date=current_date,
+                    status=status,
+                    notes=f"Solicitud aprobada: {leave_request.request_type}"
+                )
+                db.session.add(new_status)
+
+            current_date += timedelta(days=1)
+
+        db.session.commit()
+        flash(f"Solicitud de {leave_request.request_type} aprobada correctamente.", "success")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al aprobar la solicitud: {str(e)}", "danger")
+
+    return redirect(url_for("admin.leave_requests"))
+
+
+@admin_bp.route("/leave_requests/reject/<int:request_id>", methods=["POST"])
+@admin_required
+def reject_leave_request(request_id):
+    """Rechazar una solicitud de imputación"""
+    try:
+        centro_admin = get_admin_centro()
+        admin_id = session.get("user_id")
+
+        # Buscar la solicitud
+        leave_request = LeaveRequest.query.get_or_404(request_id)
+
+        # Verificar permisos
+        if centro_admin:
+            user = User.query.get(leave_request.user_id)
+            if user.centro != centro_admin:
+                flash("No tienes permisos para rechazar esta solicitud.", "danger")
+                return redirect(url_for("admin.leave_requests"))
+
+        # Rechazar la solicitud
+        leave_request.status = "Rechazado"
+        leave_request.approved_by = admin_id
+        leave_request.approval_date = datetime.now()
+
+        db.session.commit()
+        flash(f"Solicitud de {leave_request.request_type} rechazada.", "info")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al rechazar la solicitud: {str(e)}", "danger")
+
+    return redirect(url_for("admin.leave_requests"))
+
+
+@admin_bp.route("/work_pauses")
+@admin_required
+def work_pauses():
+    """Ver pausas/descansos de los empleados"""
+    centro_admin = get_admin_centro()
+
+    # Obtener filtros desde la URL
+    filter_date = request.args.get("date", date.today().isoformat())
+    filter_centro = request.args.get("centro", "all")
+    filter_categoria = request.args.get("categoria", "all")
+    filter_usuario = request.args.get("usuario", "")
+
+    try:
+        filter_date = datetime.strptime(filter_date, "%Y-%m-%d").date()
+    except ValueError:
+        filter_date = date.today()
+
+    # Buscar pausas del día filtrado
+    query = (
+        WorkPause.query
+        .join(User, WorkPause.user_id == User.id)
+        .join(TimeRecord, WorkPause.time_record_id == TimeRecord.id)
+        .filter(TimeRecord.date == filter_date)
+    )
+
+    # Si es admin de centro, filtrar por centro
+    if centro_admin:
+        query = query.filter(User.centro == centro_admin)
+        filter_centro = centro_admin
+    elif filter_centro != "all" and filter_centro:
+        query = query.filter(User.centro == filter_centro)
+
+    if filter_categoria != "all" and filter_categoria:
+        query = query.filter(User.categoria == filter_categoria)
+
+    if filter_usuario:
+        like = f"%{filter_usuario}%"
+        query = query.filter(
+            db.or_(
+                User.full_name.ilike(like),
+                User.username.ilike(like)
+            )
+        )
+
+    pauses = query.order_by(WorkPause.pause_start.desc()).all()
+
+    # Calcular estadísticas
+    total_pauses = len(pauses)
+    active_pauses = sum(1 for p in pauses if p.pause_end is None)
+
+    # Calcular tiempo total de pausas
+    total_pause_time = timedelta()
+    for pause in pauses:
+        if pause.pause_end:
+            total_pause_time += pause.pause_end - pause.pause_start
+        else:
+            # Para pausas activas, calcular hasta ahora
+            total_pause_time += datetime.now() - pause.pause_start
+
+    prev_date = (filter_date - timedelta(days=1)).isoformat()
+    next_date = (filter_date + timedelta(days=1)).isoformat()
+    today_iso = date.today().isoformat()
+    is_today = filter_date == date.today()
+
+    centros = get_centros_disponibles()
+
+    return render_template(
+        "admin_work_pauses.html",
+        pauses=pauses,
+        filter_date=filter_date,
+        total_pauses=total_pauses,
+        active_pauses=active_pauses,
+        total_pause_time=format_timedelta(total_pause_time),
+        prev_date=prev_date,
+        next_date=next_date,
+        today_iso=today_iso,
+        is_today=is_today,
+        centros=centros,
+        categorias=CATEGORIAS_DISPONIBLES,
+        filter_centro=filter_centro,
+        filter_categoria=filter_categoria,
+        filter_usuario=filter_usuario,
+        centro_admin=centro_admin
+    )
+
+
+# --------------------------------------------------------------------
+#  NOTIFICACIONES DE BAJAS AUTO-APROBADAS
+# --------------------------------------------------------------------
+@admin_bp.route("/notifications/leaves")
+@admin_required
+def get_leave_notifications():
+    """Obtener notificaciones de bajas médicas y ausencias auto-aprobadas"""
+    centro_admin = get_admin_centro()
+
+    # Obtener bajas auto-aprobadas de los últimos 7 días
+    since_date = date.today() - timedelta(days=7)
+
+    query = (
+        LeaveRequest.query
+        .join(User, LeaveRequest.user_id == User.id)
+        .filter(
+            LeaveRequest.status == "Aprobado",
+            LeaveRequest.request_type.in_(["Baja médica", "Ausencia justificada", "Ausencia injustificada"]),
+            LeaveRequest.created_at >= since_date,
+            LeaveRequest.approved_by.is_(None)  # Auto-aprobadas (sin admin que las apruebe)
+        )
+    )
+
+    # Filtrar por centro si aplica
+    if centro_admin:
+        query = query.filter(User.centro == centro_admin)
+
+    notifications = query.order_by(LeaveRequest.created_at.desc()).limit(20).all()
+
+    notifications_data = []
+    for notif in notifications:
+        days_count = (notif.end_date - notif.start_date).days + 1
+        notifications_data.append({
+            "id": notif.id,
+            "employee_name": notif.user_rel.full_name,
+            "employee_username": notif.user_rel.username,
+            "request_type": notif.request_type,
+            "start_date": notif.start_date.strftime("%d/%m/%Y"),
+            "end_date": notif.end_date.strftime("%d/%m/%Y"),
+            "days_count": days_count,
+            "reason": notif.reason or "Sin motivo especificado",
+            "created_at": notif.created_at.strftime("%d/%m/%Y %H:%M"),
+            "is_recent": (datetime.now() - notif.created_at).total_seconds() < 1800,  # Últimos 30 minutos
+            "has_attachment": notif.attachment_url is not None,
+            "attachment_url": notif.attachment_url,
+            "attachment_filename": notif.attachment_filename,
+            "attachment_type": notif.attachment_type
+        })
+
+    return jsonify({
+        "success": True,
+        "notifications": notifications_data,
+        "count": len(notifications_data)
+    })
