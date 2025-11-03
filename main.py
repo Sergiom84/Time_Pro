@@ -32,6 +32,12 @@ app = Flask(
 # Configuración general
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
+# Configuración de límite de tamaño de petición HTTP
+# Permitir archivos de hasta 16MB en las peticiones HTTP
+# (el límite real de validación en el código es 5MB, pero necesitamos
+# este margen para que la petición llegue al código de validación)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+
 # Configuración de la base de datos
 # Usando Supabase como base de datos principal
 # La contraseña contiene un @ que necesita ser URL-encoded
@@ -155,6 +161,22 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(time_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(export_bp)
+
+# Manejador de errores para archivos demasiado grandes
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Manejar error cuando el archivo excede MAX_CONTENT_LENGTH"""
+    from flask import jsonify, request
+    if request.path.startswith('/time/'):
+        # Si es una petición AJAX, devolver JSON
+        return jsonify({
+            'success': False,
+            'error': 'El archivo es demasiado grande. El tamaño máximo permitido es 16MB.'
+        }), 413
+    else:
+        # Si es una petición normal, devolver HTML
+        return render_template('error.html',
+            error_message='El archivo es demasiado grande. El tamaño máximo permitido es 16MB.'), 413
 
 # Ruta de inicio
 @app.route('/')

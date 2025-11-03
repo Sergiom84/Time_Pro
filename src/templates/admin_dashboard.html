@@ -23,6 +23,20 @@
         </svg>
         Fichajes abiertos
       </a>
+      <a href="{{ url_for('admin.leave_requests') }}"
+         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Solicitudes
+      </a>
+      <a href="{{ url_for('admin.work_pauses') }}"
+         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Pausas
+      </a>
     </div>
   </div>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -36,8 +50,8 @@
     </div>
   </div>
 
-  <!-- Filtros -->
-  <form method="get" action="{{ url_for('admin.dashboard') }}" class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+  <!-- Filtros y Notificaciones -->
+  <form method="get" action="{{ url_for('admin.dashboard') }}" class="mt-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
     <div>
       <label class="block text-xs text-gray-300 mb-1">Centro</label>
       <select name="centro" class="w-full px-3 py-2 rounded bg-gray-800 text-gray-200 border border-gray-700">
@@ -75,6 +89,7 @@
           <th class="px-3 py-2 border-b border-gray-700">Entrada</th>
           <th class="px-3 py-2 border-b border-gray-700">Salida</th>
           <th class="px-3 py-2 border-b border-gray-700">Tiempo Trabajado</th>
+          <th class="px-3 py-2 border-b border-gray-700">Estado</th>
           <th class="px-3 py-2 border-b border-gray-700">Horas Restantes</th>
           <th class="px-3 py-2 border-b border-gray-700">Categoría</th>
           <th class="px-3 py-2 border-b border-gray-700">Centro</th>
@@ -102,6 +117,25 @@
         {{ item.duration_formatted }}
       </td>
       <td class="px-3 py-2 whitespace-nowrap">
+        {% if item.active_pause %}
+          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                style="background-color:
+                  {% if item.active_pause.pause_type == 'Descanso' %}#CA8A04
+                  {% elif item.active_pause.pause_type == 'Hora del almuerzo' %}#10B981
+                  {% elif item.active_pause.pause_type == 'Asuntos médicos' %}#EF4444
+                  {% elif item.active_pause.pause_type == 'Desplazamientos' %}#F59E0B
+                  {% else %}#8B5CF6{% endif %}; color: white;">
+            {{ item.active_pause.pause_type }}
+          </span>
+        {% elif item.is_open %}
+          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold" style="background-color: #10B981; color: white;">
+            Trabajando
+          </span>
+        {% else %}
+          <span class="text-gray-500">-</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 whitespace-nowrap">
         {% if item.is_over %}
           <span class="text-red-500">●</span> -{{ item.remaining_formatted }}
         {% else %}
@@ -118,7 +152,7 @@
     </tr>
   {% else %}
     <tr>
-      <td colspan="8" class="px-3 py-3 border-b border-gray-700 text-center text-gray-500">
+      <td colspan="10" class="px-3 py-3 border-b border-gray-700 text-center text-gray-500">
         No hay registros recientes.
       </td>
     </tr>
@@ -127,4 +161,221 @@
     </table>
   </div>
 </section>
+
+<!-- Modal de Notificaciones -->
+<div id="notificationsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  <div class="rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Notificaciones de Bajas y Ausencias</h3>
+      <button onclick="closeNotificationsModal()" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+    </div>
+
+    <div id="notificationsList" class="space-y-3">
+      <!-- Las notificaciones se cargarán dinámicamente aquí -->
+    </div>
+  </div>
+</div>
+
+<script>
+  // === MANEJO DEL MODAL DE NOTIFICACIONES ===
+  const notificationsBtn = document.getElementById('headerNotificationsBtn');
+  const notificationsModal = document.getElementById('notificationsModal');
+  const notificationBadge = document.getElementById('headerNotificationBadge');
+
+  // Abrir modal de notificaciones
+  if (notificationsBtn) {
+    notificationsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      notificationsModal.classList.remove('hidden');
+      loadNotifications();
+      // Marcar notificaciones como vistas y ocultar el badge
+      notificationsSeen = true;
+      if (notificationBadge) {
+        notificationBadge.classList.add('hidden');
+      }
+    });
+  }
+
+  // Cerrar modal
+  function closeNotificationsModal() {
+    notificationsModal.classList.add('hidden');
+  }
+
+  // Cargar notificaciones
+  async function loadNotifications() {
+    try {
+      const response = await fetch('/admin/notifications/leaves');
+      const data = await response.json();
+
+      const notificationsList = document.getElementById('notificationsList');
+
+      if (data.success && data.notifications.length > 0) {
+        notificationsList.innerHTML = data.notifications.map(notif => {
+          const typeColors = {
+            'Baja médica': '#EF4444',
+            'Ausencia justificada': '#F59E0B',
+            'Ausencia injustificada': '#DC2626'
+          };
+          const color = typeColors[notif.request_type] || '#6B7280';
+          const isRecent = notif.is_recent;
+
+          return `
+            <div class="p-4 rounded-lg ${isRecent ? 'ring-2 ring-yellow-500' : ''}" style="background-color: rgba(20, 184, 166, 0.1); border: 1px solid var(--border-color);">
+              <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center gap-2">
+                  <h4 class="font-semibold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
+                  ${isRecent ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-yellow-500 text-black">NUEVO</span>' : ''}
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${color};">
+                  ${notif.request_type}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-sm mb-2" style="color: var(--text-secondary);">
+                <p><strong style="color: var(--text-primary);">Usuario:</strong> ${notif.employee_username}</p>
+                <p><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
+                <p><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
+                <p><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
+              </div>
+
+              <div class="mt-2 p-3 rounded" style="background-color: var(--bg-secondary);">
+                <p class="text-sm" style="color: var(--text-primary);">
+                  <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
+                </p>
+              </div>
+
+              <p class="text-xs mt-2 text-right" style="color: var(--text-secondary);">
+                Registrado: ${notif.created_at}
+              </p>
+
+              ${notif.has_attachment ? `
+                <div class="mt-3 flex justify-end">
+                  <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', '${notif.attachment_type}')"
+                          class="px-4 py-2 rounded-lg transition-all hover:opacity-80 inline-flex items-center gap-2"
+                          style="background-color: var(--accent-primary); color: white;">
+                    📎 Ver Justificante
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
+        // No actualizar el badge aquí, ya que el modal está abierto y las notificaciones ya fueron vistas
+      } else {
+        notificationsList.innerHTML = `
+          <div class="text-center py-8" style="color: var(--text-secondary);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p>No hay notificaciones recientes</p>
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('Error al cargar notificaciones:', error);
+      document.getElementById('notificationsList').innerHTML = `
+        <div class="text-center py-8 text-red-500">
+          <p>Error al cargar las notificaciones</p>
+        </div>
+      `;
+    }
+  }
+
+  // Variable para controlar si el usuario ya vio las notificaciones
+  let notificationsSeen = false;
+
+  // Actualizar badge de notificaciones
+  function updateNotificationBadge(count) {
+    // Solo mostrar badge si hay notificaciones y el usuario no las ha visto aún
+    if (count > 0 && !notificationsSeen) {
+      if (notificationBadge) {
+        notificationBadge.textContent = count > 9 ? '9+' : count;
+        notificationBadge.classList.remove('hidden');
+      }
+    } else {
+      if (notificationBadge) {
+        notificationBadge.classList.add('hidden');
+      }
+    }
+  }
+
+  // Cargar contador de notificaciones al cargar la página
+  async function loadNotificationCount() {
+    try {
+      const response = await fetch('/admin/notifications/leaves');
+      const data = await response.json();
+
+      if (data.success) {
+        const recentCount = data.notifications.filter(n => n.is_recent).length;
+        updateNotificationBadge(recentCount);
+      }
+    } catch (error) {
+      console.error('Error al cargar contador de notificaciones:', error);
+    }
+  }
+
+  // Cargar al iniciar
+  window.addEventListener('load', loadNotificationCount);
+
+  // Actualizar cada 60 segundos (solo si no han sido vistas)
+  setInterval(() => {
+    if (!notificationsSeen) {
+      loadNotificationCount();
+    }
+  }, 60000);
+
+  // Función para visualizar adjuntos desde notificaciones
+  function viewNotificationAttachment(url, filename, mimeType) {
+    // Crear modal si no existe
+    let modal = document.getElementById('attachmentModalNotif');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'attachmentModalNotif';
+      modal.className = 'hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+      modal.innerHTML = `
+        <div class="rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold" style="color: var(--accent-primary);">Justificante</h3>
+            <button onclick="document.getElementById('attachmentModalNotif').classList.add('hidden')" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+          </div>
+          <div id="attachmentContentNotif" class="text-center"></div>
+          <div class="flex gap-3 mt-6">
+            <a id="downloadLinkNotif" href="#" download class="flex-1 px-6 py-3 rounded-full font-semibold text-center transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: white;">
+              ⬇️ Descargar
+            </a>
+            <button onclick="document.getElementById('attachmentModalNotif').classList.add('hidden')" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const content = document.getElementById('attachmentContentNotif');
+    const downloadLink = document.getElementById('downloadLinkNotif');
+
+    // Configurar descarga
+    downloadLink.href = url;
+    downloadLink.download = filename;
+
+    // Mostrar contenido
+    if (mimeType && mimeType.includes('pdf')) {
+      content.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="600px" class="rounded-lg" />`;
+    } else if (mimeType && mimeType.includes('image')) {
+      content.innerHTML = `<img src="${url}" alt="${filename}" class="max-w-full max-h-[600px] mx-auto rounded-lg shadow-lg" />`;
+    } else {
+      content.innerHTML = `
+        <div class="text-gray-400">
+          <p>Archivo: <strong style="color: var(--text-primary);">${filename}</strong></p>
+          <p class="mt-4">Usa el botón "Descargar" para ver el archivo</p>
+        </div>
+      `;
+    }
+
+    modal.classList.remove('hidden');
+  }
+</script>
+
 {% endblock %}
