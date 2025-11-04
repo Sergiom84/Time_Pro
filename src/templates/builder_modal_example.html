@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}Ejemplo de Builder.io Modals{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Título -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-4" style="color: var(--text-primary);">
+                Builder.io Modal Integration Examples
+            </h1>
+            <p class="text-lg" style="color: var(--text-secondary);">
+                Ejemplos de cómo usar Builder.io para mejorar los modales de la aplicación
+            </p>
+        </div>
+
+        <!-- Grid de ejemplos -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Ejemplo 1: Modal Personalizado Simple -->
+            <div class="p-6 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color);">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--text-primary);">
+                    Modal Personalizado Simple
+                </h3>
+                <p class="mb-4" style="color: var(--text-secondary);">
+                    Modal con contenido HTML estático usando el sistema de temas actual
+                </p>
+                <button
+                    onclick="abrirModalSimple()"
+                    class="w-full px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                    style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                >
+                    Abrir Modal Simple
+                </button>
+            </div>
+
+            <!-- Ejemplo 2: Modal con Formulario -->
+            <div class="p-6 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color);">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--text-primary);">
+                    Modal con Formulario
+                </h3>
+                <p class="mb-4" style="color: var(--text-secondary);">
+                    Modal que incluye un formulario completo con validación
+                </p>
+                <button
+                    onclick="abrirModalFormulario()"
+                    class="w-full px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                    style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                >
+                    Abrir Modal con Formulario
+                </button>
+            </div>
+
+            <!-- Ejemplo 3: Modal de Builder.io -->
+            <div class="p-6 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color);">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--text-primary);">
+                    Modal desde Builder.io
+                </h3>
+                <p class="mb-4" style="color: var(--text-secondary);">
+                    Carga contenido dinámico creado en el Visual Editor de Builder.io
+                </p>
+                <button
+                    onclick="abrirModalBuilder()"
+                    class="w-full px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                    style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                >
+                    Abrir Modal Builder.io
+                </button>
+            </div>
+
+            <!-- Ejemplo 4: Modal Grande -->
+            <div class="p-6 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color);">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--text-primary);">
+                    Modal de Tamaño Grande
+                </h3>
+                <p class="mb-4" style="color: var(--text-secondary);">
+                    Modal con más espacio para contenido extenso
+                </p>
+                <button
+                    onclick="abrirModalGrande()"
+                    class="w-full px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                    style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                >
+                    Abrir Modal Grande
+                </button>
+            </div>
+        </div>
+
+        <!-- Documentación rápida -->
+        <div class="mt-8 p-6 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color);">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">
+                📖 Uso Rápido
+            </h3>
+            <pre class="p-4 rounded-lg overflow-x-auto" style="background-color: var(--bg-secondary);"><code style="color: var(--text-primary);">// Abrir modal personalizado
+window.BuilderModalManager.open({
+    type: 'custom',
+    title: 'Título',
+    subtitle: 'Subtítulo',
+    size: 'default', // small, default, large, full
+    content: '&lt;p&gt;Tu contenido HTML&lt;/p&gt;'
+});
+
+// Abrir modal de Builder.io
+window.BuilderModalManager.open({
+    type: 'builder',
+    modelName: 'modal',
+    contentUrl: '/modals/tu-contenido'
+});
+
+// Cerrar todos los modales
+window.BuilderModalManager.closeAll();</code></pre>
+        </div>
+    </div>
+</div>
+
+<!-- Contenido oculto que se mostrará en los modales -->
+<div id="formulario-ejemplo" style="display: none;">
+    <form class="space-y-4">
+        <div>
+            <label class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                Nombre completo <span class="text-red-500">*</span>
+            </label>
+            <input
+                type="text"
+                name="nombre"
+                required
+                class="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="Ingresa tu nombre"
+            />
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                Correo electrónico <span class="text-red-500">*</span>
+            </label>
+            <input
+                type="email"
+                name="email"
+                required
+                class="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="correo@ejemplo.com"
+            />
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                Mensaje
+            </label>
+            <textarea
+                name="mensaje"
+                rows="4"
+                class="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="Escribe tu mensaje aquí..."
+            ></textarea>
+        </div>
+
+        <div class="flex gap-4">
+            <button
+                type="submit"
+                class="flex-1 px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+            >
+                Enviar
+            </button>
+            <button
+                type="button"
+                onclick="window.BuilderModalManager.closeAll()"
+                class="flex-1 px-6 py-3 rounded-xl font-semibold border-2 transition-all transform hover:scale-105 active:scale-95"
+                style="border-color: var(--accent-primary); color: var(--accent-primary);"
+            >
+                Cancelar
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Función para verificar que BuilderModalManager está disponible
+    function verificarBuilderModal() {
+        if (!window.BuilderModalManager) {
+            alert('⚠️ BuilderModalManager no está disponible. Asegúrate de que React se ha cargado correctamente.');
+            return false;
+        }
+        return true;
+    }
+
+    // Ejemplo 1: Modal Simple
+    function abrirModalSimple() {
+        if (!verificarBuilderModal()) return;
+
+        window.BuilderModalManager.open({
+            type: 'custom',
+            title: '👋 Hola!',
+            subtitle: 'Este es un modal personalizado simple',
+            size: 'default',
+            content: `
+                <div class="space-y-4">
+                    <p style="color: var(--text-primary);">
+                        Este modal utiliza el sistema de temas existente y se integra
+                        perfectamente con el diseño de la aplicación.
+                    </p>
+                    <ul class="list-disc list-inside space-y-2" style="color: var(--text-secondary);">
+                        <li>Soporta variables CSS del tema</li>
+                        <li>Responsive y accesible</li>
+                        <li>Fácil de usar desde cualquier template</li>
+                        <li>Compatible con Jinja2 y React</li>
+                    </ul>
+                    <div class="mt-6">
+                        <button
+                            onclick="window.BuilderModalManager.closeAll()"
+                            class="w-full px-6 py-3 rounded-xl font-semibold text-white shadow-lg"
+                            style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            `,
+        });
+    }
+
+    // Ejemplo 2: Modal con Formulario
+    function abrirModalFormulario() {
+        if (!verificarBuilderModal()) return;
+
+        const formulario = document.getElementById('formulario-ejemplo').innerHTML;
+
+        window.BuilderModalManager.open({
+            type: 'custom',
+            title: '📝 Formulario de Contacto',
+            subtitle: 'Completa los campos a continuación',
+            size: 'default',
+            content: formulario,
+        });
+    }
+
+    // Ejemplo 3: Modal desde Builder.io
+    function abrirModalBuilder() {
+        if (!verificarBuilderModal()) return;
+
+        window.BuilderModalManager.open({
+            type: 'builder',
+            modelName: 'modal',
+            // Cambia esto por tu URL de contenido en Builder.io
+            contentUrl: '/modals/ejemplo',
+            // Contenido alternativo si no está configurado Builder.io
+            fallbackContent: `
+                <div class="text-center py-8">
+                    <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">
+                        ⚙️ Configuración pendiente
+                    </h3>
+                    <p class="mb-4" style="color: var(--text-secondary);">
+                        Para usar este modal, necesitas:
+                    </p>
+                    <ol class="list-decimal list-inside text-left inline-block space-y-2 mb-6" style="color: var(--text-secondary);">
+                        <li>Configurar tu API key en .env</li>
+                        <li>Crear un modelo 'modal' en Builder.io</li>
+                        <li>Crear contenido en el Visual Editor</li>
+                        <li>Publicar el contenido</li>
+                    </ol>
+                    <button
+                        onclick="window.BuilderModalManager.closeAll()"
+                        class="px-6 py-3 rounded-xl font-semibold text-white shadow-lg"
+                        style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                    >
+                        Entendido
+                    </button>
+                </div>
+            `,
+        });
+    }
+
+    // Ejemplo 4: Modal Grande
+    function abrirModalGrande() {
+        if (!verificarBuilderModal()) return;
+
+        window.BuilderModalManager.open({
+            type: 'custom',
+            title: '📊 Modal de Tamaño Grande',
+            subtitle: 'Perfecto para dashboards y tablas',
+            size: 'large',
+            content: `
+                <div class="space-y-6">
+                    <p style="color: var(--text-primary);">
+                        Este modal usa el tamaño 'large' y es ideal para mostrar contenido extenso.
+                    </p>
+
+                    <!-- Ejemplo de tabla -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full" style="border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: var(--bg-secondary);">
+                                    <th class="p-3 text-left" style="color: var(--text-primary); border-bottom: 2px solid var(--border-color);">Empleado</th>
+                                    <th class="p-3 text-left" style="color: var(--text-primary); border-bottom: 2px solid var(--border-color);">Departamento</th>
+                                    <th class="p-3 text-left" style="color: var(--text-primary); border-bottom: 2px solid var(--border-color);">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">Juan Pérez</td>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">Desarrollo</td>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">✅ Activo</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">María García</td>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">Diseño</td>
+                                    <td class="p-3" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">✅ Activo</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3" style="color: var(--text-secondary);">Carlos López</td>
+                                    <td class="p-3" style="color: var(--text-secondary);">Marketing</td>
+                                    <td class="p-3" style="color: var(--text-secondary);">🔵 En pausa</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button
+                            onclick="window.BuilderModalManager.closeAll()"
+                            class="flex-1 px-6 py-3 rounded-xl font-semibold text-white shadow-lg"
+                            style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary) 100%);"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            `,
+        });
+    }
+
+    // Log para debugging
+    console.log('🎨 Builder.io Modal Examples loaded');
+    console.log('BuilderModalManager available:', !!window.BuilderModalManager);
+</script>
+{% endblock %}
