@@ -36,6 +36,10 @@ class User(db.Model):
     notification_time_exit = db.Column(db.Time, nullable=True)   # Hora de aviso para salida
     additional_notification_email = db.Column(db.String(120), nullable=True)  # Correo adicional para notificaciones
 
+    # Campos para rastrear notificaciones enviadas y evitar duplicados
+    last_entry_notification_sent = db.Column(db.DateTime, nullable=True)  # Última notificación de entrada enviada
+    last_exit_notification_sent = db.Column(db.DateTime, nullable=True)   # Última notificación de salida enviada
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     time_records = db.relationship(
