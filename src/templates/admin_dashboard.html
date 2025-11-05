@@ -266,64 +266,106 @@
   // Cargar notificaciones
   async function loadNotifications() {
     try {
-      const response = await fetch('/admin/notifications/leaves');
-      const data = await response.json();
+      // Cargar AMBAS fuentes: auto-aprobadas Y solicitudes pendientes
+      const [leavesResponse, pendingResponse] = await Promise.all([
+        fetch('/admin/notifications/leaves'),
+        fetch('/admin/notifications/pending-requests')
+      ]);
+
+      const leavesData = await leavesResponse.json();
+      const pendingData = await pendingResponse.json();
 
       const notificationsList = document.getElementById('notificationsList');
+      let allNotifications = [];
 
-      if (data.success && data.notifications.length > 0) {
-        notificationsList.innerHTML = data.notifications.map(notif => {
-          const typeColors = {
-            'Baja médica': '#EF4444',
-            'Ausencia justificada': '#F59E0B',
-            'Ausencia injustificada': '#DC2626'
-          };
-          const color = typeColors[notif.request_type] || '#6B7280';
-          const isRecent = notif.is_recent;
+      // Función auxiliar para crear HTML de notificación
+      function createNotificationHTML(notif, isPending = false) {
+        const typeColors = {
+          'Vacaciones': '#3B82F6',
+          'Baja médica': '#EF4444',
+          'Ausencia justificada': '#F59E0B',
+          'Ausencia injustificada': '#DC2626',
+          'Permiso especial': '#8B5CF6'
+        };
+        const color = typeColors[notif.request_type] || '#6B7280';
+        const isRecent = notif.is_recent || isPending;
+        const statusBadge = isPending ? `<span class="px-2 py-1 text-xs font-bold rounded-full bg-blue-500 text-white">PENDIENTE</span>` : '';
 
-          return `
-            <div class="p-4 rounded-lg ${isRecent ? 'ring-2 ring-yellow-500' : ''}" style="background-color: rgba(20, 184, 166, 0.1); border: 1px solid var(--border-color);">
-              <div class="flex justify-between items-start mb-2">
-                <div class="flex items-center gap-2">
-                  <h4 class="font-semibold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
-                  ${isRecent ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-yellow-500 text-black">NUEVO</span>' : ''}
-                </div>
-                <span class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${color};">
-                  ${notif.request_type}
-                </span>
+        return `
+          <div class="p-4 rounded-lg ${isRecent ? 'ring-2 ring-yellow-500' : ''}" style="background-color: rgba(20, 184, 166, 0.1); border: 1px solid var(--border-color);">
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
+                ${statusBadge}
+                ${isRecent && !isPending ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-yellow-500 text-black">NUEVO</span>' : ''}
               </div>
-
-              <div class="grid grid-cols-2 gap-2 text-sm mb-2" style="color: var(--text-secondary);">
-                <p><strong style="color: var(--text-primary);">Usuario:</strong> ${notif.employee_username}</p>
-                <p><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
-                <p><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
-                <p><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
-              </div>
-
-              <div class="mt-2 p-3 rounded" style="background-color: var(--bg-secondary);">
-                <p class="text-sm" style="color: var(--text-primary);">
-                  <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
-                </p>
-              </div>
-
-              <p class="text-xs mt-2 text-right" style="color: var(--text-secondary);">
-                Registrado: ${notif.created_at}
-              </p>
-
-              ${notif.has_attachment ? `
-                <div class="mt-3 flex justify-end">
-                  <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', '${notif.attachment_type}')"
-                          class="px-4 py-2 rounded-lg transition-all hover:opacity-80 inline-flex items-center gap-2"
-                          style="background-color: var(--accent-primary); color: white;">
-                    📎 Ver Justificante
-                  </button>
-                </div>
-              ` : ''}
+              <span class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${color};">
+                ${notif.request_type}
+              </span>
             </div>
-          `;
-        }).join('');
 
-        // No actualizar el badge aquí, ya que el modal está abierto y las notificaciones ya fueron vistas
+            <div class="grid grid-cols-2 gap-2 text-sm mb-2" style="color: var(--text-secondary);">
+              <p><strong style="color: var(--text-primary);">Usuario:</strong> ${notif.employee_username}</p>
+              <p><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
+              <p><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
+              <p><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
+            </div>
+
+            <div class="mt-2 p-3 rounded" style="background-color: var(--bg-secondary);">
+              <p class="text-sm" style="color: var(--text-primary);">
+                <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
+              </p>
+            </div>
+
+            <p class="text-xs mt-2 text-right" style="color: var(--text-secondary);">
+              Registrado: ${notif.created_at}
+            </p>
+
+            ${notif.has_attachment ? `
+              <div class="mt-3 flex justify-end">
+                <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', '${notif.attachment_type || 'application/octet-stream'}')"
+                        class="px-4 py-2 rounded-lg transition-all hover:opacity-80 inline-flex items-center gap-2"
+                        style="background-color: var(--accent-primary); color: white;">
+                  📎 Ver Justificante
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // Añadir notificaciones auto-aprobadas (bajas/ausencias)
+      if (leavesData.success && leavesData.notifications.length > 0) {
+        allNotifications = allNotifications.concat(
+          leavesData.notifications.map(n => createNotificationHTML(n, false))
+        );
+      }
+
+      // Añadir solicitudes pendientes (todas las categorías)
+      if (pendingData.success) {
+        // Vacaciones pendientes
+        if (pendingData.vacaciones && pendingData.vacaciones.length > 0) {
+          allNotifications = allNotifications.concat(
+            pendingData.vacaciones.map(n => createNotificationHTML(n, true))
+          );
+        }
+        // Bajas pendientes
+        if (pendingData.bajas && pendingData.bajas.length > 0) {
+          allNotifications = allNotifications.concat(
+            pendingData.bajas.map(n => createNotificationHTML(n, true))
+          );
+        }
+        // Ausencias pendientes
+        if (pendingData.ausencias && pendingData.ausencias.length > 0) {
+          allNotifications = allNotifications.concat(
+            pendingData.ausencias.map(n => createNotificationHTML(n, true))
+          );
+        }
+      }
+
+      // Mostrar todas las notificaciones
+      if (allNotifications.length > 0) {
+        notificationsList.innerHTML = allNotifications.join('');
       } else {
         notificationsList.innerHTML = `
           <div class="text-center py-8" style="color: var(--text-secondary);">
