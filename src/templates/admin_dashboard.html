@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard Admin{% endblock %}
-{% block header %}<span class="text-miss-sushi-pink">Panel de Administración</span>{% endblock %}
+{% block header %}<span class="text-timetracker-primary">Panel de Administración</span>{% endblock %}
 
 {% block content %}
 
@@ -266,20 +266,14 @@
   // Cargar notificaciones
   async function loadNotifications() {
     try {
-      // Cargar AMBAS fuentes: auto-aprobadas Y solicitudes pendientes
-      const [leavesResponse, pendingResponse] = await Promise.all([
-        fetch('/admin/notifications/leaves'),
-        fetch('/admin/notifications/pending-requests')
-      ]);
-
-      const leavesData = await leavesResponse.json();
-      const pendingData = await pendingResponse.json();
+      // Cargar SOLO solicitudes pendientes
+      const response = await fetch('/admin/notifications/pending-requests');
+      const pendingData = await response.json();
 
       const notificationsList = document.getElementById('notificationsList');
-      let allNotifications = [];
 
-      // Función auxiliar para crear HTML de notificación
-      function createNotificationHTML(notif, isPending = false) {
+      // Función auxiliar para crear HTML de notificación con botones de acción
+      function createNotificationHTML(notif) {
         const typeColors = {
           'Vacaciones': '#3B82F6',
           'Baja médica': '#EF4444',
@@ -288,84 +282,97 @@
           'Permiso especial': '#8B5CF6'
         };
         const color = typeColors[notif.request_type] || '#6B7280';
-        const isRecent = notif.is_recent || isPending;
-        const statusBadge = isPending ? `<span class="px-2 py-1 text-xs font-bold rounded-full bg-blue-500 text-white">PENDIENTE</span>` : '';
 
         return `
-          <div class="p-4 rounded-lg ${isRecent ? 'ring-2 ring-yellow-500' : ''}" style="background-color: rgba(20, 184, 166, 0.1); border: 1px solid var(--border-color);">
-            <div class="flex justify-between items-start mb-2">
-              <div class="flex items-center gap-2">
-                <h4 class="font-semibold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
-                ${statusBadge}
-                ${isRecent && !isPending ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-yellow-500 text-black">NUEVO</span>' : ''}
+          <div class="p-5 rounded-lg mb-4 border-l-4" style="background-color: var(--bg-secondary); border-left-color: ${color};">
+            <!-- Cabecera con info del empleado -->
+            <div class="flex justify-between items-start mb-3">
+              <div>
+                <h4 class="font-bold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
+                <span class="text-xs px-2 py-1 rounded-full text-white mt-1 inline-block" style="background-color: ${color};">
+                  ${notif.request_type}
+                </span>
               </div>
-              <span class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${color};">
-                ${notif.request_type}
-              </span>
+              <span class="text-xs" style="color: var(--text-muted);">${notif.created_at}</span>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 text-sm mb-2" style="color: var(--text-secondary);">
-              <p><strong style="color: var(--text-primary);">Usuario:</strong> ${notif.employee_username}</p>
-              <p><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
-              <p><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
-              <p><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
+            <!-- Info de la solicitud -->
+            <div class="grid grid-cols-2 gap-2 text-sm mb-3 p-3 rounded" style="background-color: var(--bg-primary);">
+              <p style="color: var(--text-secondary);"><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
+              <p style="color: var(--text-secondary);"><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
+              <p style="color: var(--text-secondary);" class="col-span-2"><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
             </div>
 
-            <div class="mt-2 p-3 rounded" style="background-color: var(--bg-secondary);">
-              <p class="text-sm" style="color: var(--text-primary);">
-                <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
-              </p>
-            </div>
+            <!-- Motivo -->
+            ${notif.reason ? `
+              <div class="mb-3 p-3 rounded" style="background-color: var(--bg-primary);">
+                <p class="text-sm" style="color: var(--text-secondary);">
+                  <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
+                </p>
+              </div>
+            ` : ''}
 
-            <p class="text-xs mt-2 text-right" style="color: var(--text-secondary);">
-              Registrado: ${notif.created_at}
-            </p>
-
+            <!-- Adjunto (si existe) -->
             ${notif.has_attachment ? `
-              <div class="mt-3 flex justify-end">
-                <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', '${notif.attachment_type || 'application/octet-stream'}')"
-                        class="px-4 py-2 rounded-lg transition-all hover:opacity-80 inline-flex items-center gap-2"
+              <div class="mb-3">
+                <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', 'application/pdf')"
+                        class="text-sm px-3 py-2 rounded transition-all hover:opacity-80 inline-flex items-center gap-2"
                         style="background-color: var(--accent-primary); color: white;">
                   📎 Ver Justificante
                 </button>
               </div>
             ` : ''}
+
+            <!-- Botones de Acción -->
+            <div class="flex gap-2 mt-4">
+              <button onclick="approveRequest(${notif.id})"
+                      class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                      style="background-color: #10B981; color: white;">
+                ✓ Aprobar
+              </button>
+              <button onclick="rejectRequest(${notif.id})"
+                      class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                      style="background-color: #EF4444; color: white;">
+                ✗ Rechazar
+              </button>
+              <button onclick="closeNotificationsModal()"
+                      class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                      style="background-color: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+                ⏱ Más tarde
+              </button>
+            </div>
           </div>
         `;
       }
 
-      // Añadir notificaciones auto-aprobadas (bajas/ausencias)
-      if (leavesData.success && leavesData.notifications.length > 0) {
-        allNotifications = allNotifications.concat(
-          leavesData.notifications.map(n => createNotificationHTML(n, false))
-        );
-      }
+      // Recolectar todas las solicitudes pendientes
+      let allRequests = [];
 
-      // Añadir solicitudes pendientes (todas las categorías)
       if (pendingData.success) {
         // Vacaciones pendientes
         if (pendingData.vacaciones && pendingData.vacaciones.length > 0) {
-          allNotifications = allNotifications.concat(
-            pendingData.vacaciones.map(n => createNotificationHTML(n, true))
-          );
+          allRequests = allRequests.concat(pendingData.vacaciones);
         }
         // Bajas pendientes
         if (pendingData.bajas && pendingData.bajas.length > 0) {
-          allNotifications = allNotifications.concat(
-            pendingData.bajas.map(n => createNotificationHTML(n, true))
-          );
+          allRequests = allRequests.concat(pendingData.bajas);
         }
         // Ausencias pendientes
         if (pendingData.ausencias && pendingData.ausencias.length > 0) {
-          allNotifications = allNotifications.concat(
-            pendingData.ausencias.map(n => createNotificationHTML(n, true))
-          );
+          allRequests = allRequests.concat(pendingData.ausencias);
         }
       }
 
-      // Mostrar todas las notificaciones
-      if (allNotifications.length > 0) {
-        notificationsList.innerHTML = allNotifications.join('');
+      // Ordenar por fecha: más recientes primero
+      allRequests.sort((a, b) => {
+        const dateA = new Date(a.created_at.split('/').reverse().join('-') + ' ' + a.created_at.split(' ')[1]);
+        const dateB = new Date(b.created_at.split('/').reverse().join('-') + ' ' + b.created_at.split(' ')[1]);
+        return dateB - dateA; // Descendente (más recientes primero)
+      });
+
+      // Mostrar todas las solicitudes pendientes
+      if (allRequests.length > 0) {
+        notificationsList.innerHTML = allRequests.map(req => createNotificationHTML(req)).join('');
       } else {
         notificationsList.innerHTML = `
           <div class="text-center py-8" style="color: var(--text-secondary);">
@@ -410,26 +417,15 @@
   // Cargar contador de notificaciones al cargar la página
   async function loadNotificationCount() {
     try {
-      // Obtener ambas fuentes de notificaciones en paralelo
-      const [leavesResponse, pendingResponse] = await Promise.all([
-        fetch('/admin/notifications/leaves'),
-        fetch('/admin/notifications/pending-requests')
-      ]);
-
-      const leavesData = await leavesResponse.json();
-      const pendingData = await pendingResponse.json();
+      // Obtener SOLO solicitudes pendientes (no auto-aprobadas)
+      const response = await fetch('/admin/notifications/pending-requests');
+      const pendingData = await response.json();
 
       let totalCount = 0;
 
-      // Contar notificaciones de bajas auto-aprobadas recientes
-      if (leavesData.success) {
-        const recentCount = leavesData.notifications.filter(n => n.is_recent).length;
-        totalCount += recentCount;
-      }
-
-      // Añadir solicitudes pendientes
+      // Contar solo solicitudes pendientes
       if (pendingData.success) {
-        totalCount += pendingData.total;
+        totalCount = pendingData.total;
       }
 
       updateNotificationBadge(totalCount);
@@ -629,6 +625,72 @@
   window.addEventListener('load', () => {
     setTimeout(showPopupIfNeeded, 1000); // Esperar 1 segundo para que cargue todo
   });
+
+  // === FUNCIONES DE APROBACIÓN/RECHAZO DE SOLICITUDES ===
+
+  // Aprobar solicitud
+  async function approveRequest(requestId) {
+    if (!confirm('¿Estás seguro de que deseas APROBAR esta solicitud?')) return;
+
+    try {
+      const response = await fetch(`/admin/leave_requests/approve/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success !== false) {
+        alert('Solicitud aprobada correctamente');
+        // Recargar notificaciones
+        loadNotifications();
+        // Actualizar badge
+        loadNotificationCount();
+      } else {
+        alert('Error al aprobar: ' + (data.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error al aprobar solicitud:', error);
+      alert('Error al aprobar la solicitud');
+    }
+  }
+
+  // Rechazar solicitud
+  async function rejectRequest(requestId) {
+    const reason = prompt('¿Por qué rechazas esta solicitud? (opcional)');
+    if (reason === null) return; // Usuario canceló
+
+    try {
+      const response = await fetch(`/admin/leave_requests/reject/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: reason })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success !== false) {
+        alert('Solicitud rechazada correctamente');
+        // Recargar notificaciones
+        loadNotifications();
+        // Actualizar badge
+        loadNotificationCount();
+      } else {
+        alert('Error al rechazar: ' + (data.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error al rechazar solicitud:', error);
+      alert('Error al rechazar la solicitud');
+    }
+  }
+
+  // Hacer funciones globales
+  window.approveRequest = approveRequest;
+  window.rejectRequest = rejectRequest;
 </script>
 
 {% endblock %}
