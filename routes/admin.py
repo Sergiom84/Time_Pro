@@ -854,9 +854,11 @@ def close_today_records():
     """Manual trigger to close all open records for today"""
     try:
         from tasks.scheduler import manual_auto_close_records
+        from datetime import datetime
         closed_count = manual_auto_close_records()
         if closed_count > 0:
-            flash(f"Se cerraron automáticamente {closed_count} registros abiertos de hoy.", "success")
+            current_time = datetime.now().strftime('%H:%M')
+            flash(f"Se cerraron {closed_count} registros abiertos de hoy a las {current_time}.", "success")
         else:
             flash("No hay registros abiertos para cerrar hoy.", "info")
     except ImportError:
