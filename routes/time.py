@@ -661,24 +661,24 @@ def get_my_requests():
 
 @time_bp.route("/time/requests/cancel/<int:request_id>", methods=["POST"])
 def cancel_leave_request(request_id):
-    """Cancelar una solicitud pendiente"""
+    """Cancelar una solicitud pendiente o enviada"""
     if "user_id" not in session:
         return jsonify({"error": "No autenticado"}), 401
 
     user_id = session["user_id"]
 
     try:
-        # Buscar la solicitud
-        leave_request = LeaveRequest.query.filter_by(
-            id=request_id,
-            user_id=user_id,
-            status="Pendiente"
+        # Buscar la solicitud (permitir cancelar si está Pendiente o Enviada)
+        leave_request = LeaveRequest.query.filter(
+            LeaveRequest.id == request_id,
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status.in_(["Pendiente", "Enviado"])
         ).first()
 
         if not leave_request:
             return jsonify({
                 "success": False,
-                "error": "No se encontró la solicitud o ya no está pendiente"
+                "error": "No se encontró la solicitud o ya no se puede cancelar (puede estar aprobada o rechazada)"
             })
 
         # Cancelar la solicitud
