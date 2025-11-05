@@ -8,7 +8,7 @@ import os
 
 def send_notification_email(mail, user, notification_type='entry'):
     """
-    Envía un correo de notificación de fichaje al usuario
+    Envía un correo de notificación de fichaje al usuario y actualiza el timestamp
 
     Args:
         mail: Instancia de Flask-Mail
@@ -16,6 +16,8 @@ def send_notification_email(mail, user, notification_type='entry'):
         notification_type: 'entry' para entrada, 'exit' para salida
     """
     try:
+        from models.database import db
+
         if notification_type == 'entry':
             subject = '⏰ Recordatorio de Fichaje de Entrada'
             body = f"""
@@ -62,6 +64,14 @@ Time Tracker - Sistema de Control de Fichajes
 
         mail.send(msg)
         print(f"[EMAIL] Correo enviado a {', '.join(recipients)} ({notification_type})")
+
+        # Actualizar el timestamp de la última notificación enviada
+        if notification_type == 'entry':
+            user.last_entry_notification_sent = datetime.now()
+        else:
+            user.last_exit_notification_sent = datetime.now()
+
+        db.session.commit()
         return True
 
     except Exception as e:
@@ -129,8 +139,18 @@ def check_and_send_notifications(app, mail):
 
                 # Ventana ampliada: 5 minutos antes hasta 10 minutos después
                 if -5 <= time_diff <= 10:
-                    print(f"[SCHEDULER]   ✓ Enviando email de ENTRADA a {user.username}")
-                    send_notification_email(mail, user, 'entry')
+                    # Verificar si ya se envió una notificación de entrada hoy
+                    already_sent = False
+                    if user.last_entry_notification_sent:
+                        last_sent_date = user.last_entry_notification_sent.date()
+                        today_date = datetime.today().date()
+                        already_sent = last_sent_date == today_date
+
+                    if already_sent:
+                        print(f"[SCHEDULER]   ⚠ Ya se envió notificación de ENTRADA a {user.username} hoy")
+                    else:
+                        print(f"[SCHEDULER]   ✓ Enviando email de ENTRADA a {user.username}")
+                        send_notification_email(mail, user, 'entry')
 
             # Verificar hora de notificación de salida
             if user.notification_time_exit:
@@ -142,7 +162,17 @@ def check_and_send_notifications(app, mail):
 
                 # Ventana ampliada: 5 minutos antes hasta 10 minutos después
                 if -5 <= time_diff <= 10:
-                    print(f"[SCHEDULER]   ✓ Enviando email de SALIDA a {user.username}")
-                    send_notification_email(mail, user, 'exit')
+                    # Verificar si ya se envió una notificación de salida hoy
+                    already_sent = False
+                    if user.last_exit_notification_sent:
+                        last_sent_date = user.last_exit_notification_sent.date()
+                        today_date = datetime.today().date()
+                        already_sent = last_sent_date == today_date
+
+                    if already_sent:
+                        print(f"[SCHEDULER]   ⚠ Ya se envió notificación de SALIDA a {user.username} hoy")
+                    else:
+                        print(f"[SCHEDULER]   ✓ Enviando email de SALIDA a {user.username}")
+                        send_notification_email(mail, user, 'exit')
 
         print(f"[SCHEDULER] Revisión completada\n")

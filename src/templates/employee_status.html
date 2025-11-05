@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto bg-gray-900 border border-gray-700 rounded-lg shadow-md p-8">
+<div class="bg-gray-900 border border-gray-700 rounded-lg shadow-md p-8">
 
   <!-- ----------  BOTÓN ATRÁS ---------- -->
   <div class="mb-4 flex">
@@ -36,9 +36,10 @@
     </div>
 
     <div>
-      <label class="block text-sm text-gray-300 mb-1">Estado *</label>
-      <select name="status" required
+      <label class="block text-sm text-gray-300 mb-1">Estado</label>
+      <select name="status"
               class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
+        <option value="">Todo</option>
         <option>Trabajado</option>
         <option>Baja</option>
         <option>Ausente</option>
@@ -52,15 +53,24 @@
              class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
     </div>
 
-    <div class="md:col-span-5 flex justify-end">
-      <button class="px-6 py-2 rounded text-white transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
+    <div class="md:col-span-5 flex justify-end gap-2">
+      <button type="button" id="reset-filters"
+              class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded text-white">
+        Limpiar
+      </button>
+      <button type="button" id="filter-calendar"
+              class="px-6 py-2 rounded text-white transition-all hover:opacity-90"
+              style="background-color: var(--accent-primary);">
+        Filtrar
+      </button>
+      <button type="submit" class="px-6 py-2 rounded text-white transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
         Añadir
       </button>
     </div>
   </form>
 
   <!-- ----------  CALENDARIO PERSONAL  ---------- -->
-  <div class="w-full max-w-6xl mx-auto">
+  <div class="w-full">
     <div id="user-calendar"></div>
   </div>
 
@@ -77,6 +87,7 @@
         <div class="mb-4">
           <label class="block text-sm text-gray-300 mb-1">Estado</label>
           <select id="edit_status" name="edit_status" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
+            <option value=""></option>
             <option value="Trabajado">Trabajado</option>
             <option value="Baja">Baja</option>
             <option value="Ausente">Ausente</option>
@@ -102,6 +113,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  // ---------- VARIABLES GLOBALES ----------
+  let dateFilters = {};
+  let statusFilter = '';
+
   // ---------- FULLCALENDAR ----------
   const cal = new FullCalendar.Calendar(document.getElementById('user-calendar'), {
     initialView : 'dayGridMonth',
@@ -112,8 +127,28 @@ document.addEventListener('DOMContentLoaded', () => {
     eventDisplay: 'block',
 
     events(info, success, fail) {
-      const url = `/admin/api/events?user_id={{ user.id }}&start=${info.startStr}&end=${info.endStr}`;
-      fetch(url).then(r => r.json()).then(success).catch(fail);
+      // Construir parámetros base
+      const params = {
+        user_id: '{{ user.id }}',
+        start: dateFilters.start || info.startStr,
+        end: dateFilters.end || info.endStr
+      };
+
+      fetch(`/admin/api/events?${new URLSearchParams(params).toString()}`)
+        .then(r => r.json())
+        .then(events => {
+          // Filtrar por estado si se seleccionó uno específico
+          if (statusFilter && statusFilter !== '') {
+            const filtered = events.filter(ev => {
+              const evStatus = ev.title.split(' - ')[0];
+              return evStatus === statusFilter;
+            });
+            success(filtered);
+          } else {
+            success(events);
+          }
+        })
+        .catch(fail);
     },
 
     eventClick(info) {
@@ -136,6 +171,61 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   cal.render();
 
+  // ---------- VALIDACIÓN DEL FORMULARIO DE AÑADIR ----------
+  const form = document.querySelector('form[method="POST"]');
+
+  form.addEventListener('submit', e => {
+    const status = form.status.value;
+    if (!status || status === '') {
+      e.preventDefault();
+      alert('Por favor, selecciona un estado válido (Trabajado, Baja, Ausente o Vacaciones)');
+      return false;
+    }
+  });
+
+  // ---------- MANEJO DEL FILTRADO ----------
+
+  document.getElementById('filter-calendar').addEventListener('click', e => {
+    e.preventDefault();
+
+    // Capturar valores del formulario
+    const startDate = form.start_date.value;
+    const endDate = form.end_date.value;
+    const status = form.status.value;
+
+    // Actualizar filtros de fecha solo si tienen valor
+    if (startDate || endDate) {
+      dateFilters = {
+        start: startDate || undefined,
+        end: endDate || undefined
+      };
+    } else {
+      dateFilters = {};
+    }
+
+    // Actualizar filtro de estado
+    statusFilter = status;
+
+    // Recargar eventos
+    cal.refetchEvents();
+  });
+
+  document.getElementById('reset-filters').addEventListener('click', e => {
+    e.preventDefault();
+
+    // Limpiar filtros
+    dateFilters = {};
+    statusFilter = '';
+
+    // Limpiar campos del formulario (excepto notas)
+    form.start_date.value = '';
+    form.end_date.value = '';
+    form.status.value = '';
+
+    // Recargar eventos
+    cal.refetchEvents();
+  });
+
   // Cerrar modal
   document.getElementById('closeModalBtn').onclick = function() {
     document.getElementById('editModal').classList.add('hidden');
@@ -147,11 +237,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const status_id = document.getElementById('edit_status_id').value;
     const status = document.getElementById('edit_status').value;
     const notes = document.getElementById('edit_notes').value;
+
+    console.log('Editando estado:', { status_id, status, notes });
+
+    // Si el estado está vacío, eliminar el registro en lugar de actualizarlo
+    if (!status || status === '') {
+      if (confirm('¿Deseas eliminar este estado y dejar el día libre?')) {
+        fetch(`/admin/employees/{{ user.id }}/status/delete/${status_id}`, {
+          method: 'POST'
+        })
+        .then(response => {
+          console.log('Estado eliminado:', response);
+          if (response.ok) {
+            window.location.reload();
+          } else {
+            console.error('Error al eliminar:', response.status);
+            alert('Error al eliminar el estado');
+          }
+        })
+        .catch(error => {
+          console.error('Error en la petición:', error);
+          alert('Error al eliminar el estado');
+        });
+      }
+      return;
+    }
+
+    // Si hay estado, actualizar normalmente
     fetch(`/admin/employees/{{ user.id }}/status/edit/${status_id}`, {
       method: "POST",
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({status, notes})
-    }).then(() => window.location.reload());
+    })
+    .then(response => {
+      console.log('Respuesta del servidor:', response);
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        console.error('Error en la respuesta:', response.status);
+        alert('Error al guardar los cambios');
+      }
+    })
+    .catch(error => {
+      console.error('Error en la petición:', error);
+      alert('Error al guardar los cambios');
+    });
   };
 });
 </script>
