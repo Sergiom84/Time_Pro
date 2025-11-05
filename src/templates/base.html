@@ -50,6 +50,38 @@
     }
     /* Alinear el borde superior de sidebar y topbar */
     #sidebar { margin-top: 0; }
+
+    /* Animación de pulso para notificaciones */
+    @keyframes pulse-notification {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.15);
+        opacity: 0.85;
+      }
+    }
+
+    .notification-pulse {
+      animation: pulse-notification 2s ease-in-out infinite;
+    }
+
+    /* Animación para el popup de solicitudes */
+    @keyframes slideInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .popup-slide-in {
+      animation: slideInDown 0.4s ease-out;
+    }
   </style>
 </head>
 

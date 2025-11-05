@@ -163,6 +163,68 @@
 </section>
 
 <!-- Modal de Notificaciones -->
+<!-- Popup automático de solicitudes pendientes -->
+<div id="pendingRequestsPopup" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+  <div class="popup-slide-in rounded-2xl p-8 max-w-5xl w-full max-h-[85vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+    <div class="flex justify-between items-center mb-6">
+      <div>
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">🔔 Nuevas Solicitudes Pendientes</h3>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">Tienes solicitudes que requieren tu atención</p>
+      </div>
+      <button onclick="closePendingRequestsPopup()" class="text-2xl hover:opacity-70 transition-opacity" style="color: var(--text-primary);">&times;</button>
+    </div>
+
+    <div id="pendingRequestsContent" class="space-y-6">
+      <!-- Sección de Vacaciones -->
+      <div id="vacacionesSection" class="hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-6 rounded" style="background-color: #3B82F6;"></div>
+          <h4 class="text-lg font-semibold" style="color: var(--text-primary);">🏖️ Vacaciones (<span id="vacacionesCount">0</span>)</h4>
+        </div>
+        <div id="vacacionesList" class="space-y-2 ml-4"></div>
+      </div>
+
+      <!-- Sección de Bajas Médicas -->
+      <div id="bajasSection" class="hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-6 rounded" style="background-color: #EF4444;"></div>
+          <h4 class="text-lg font-semibold" style="color: var(--text-primary);">🏥 Bajas Médicas (<span id="bajasCount">0</span>)</h4>
+        </div>
+        <div id="bajasList" class="space-y-2 ml-4"></div>
+      </div>
+
+      <!-- Sección de Ausencias -->
+      <div id="ausenciasSection" class="hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-6 rounded" style="background-color: #F59E0B;"></div>
+          <h4 class="text-lg font-semibold" style="color: var(--text-primary);">⚠️ Ausencias (<span id="ausenciasCount">0</span>)</h4>
+        </div>
+        <div id="ausenciasList" class="space-y-2 ml-4"></div>
+      </div>
+
+      <!-- Mensaje si no hay solicitudes -->
+      <div id="noRequestsMessage" class="text-center py-8">
+        <p class="text-lg" style="color: var(--text-muted);">No hay solicitudes pendientes</p>
+      </div>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="flex justify-between items-center mt-8 pt-6 border-t" style="border-color: var(--border-color);">
+      <button onclick="hidePopupUntilTomorrow()" class="px-4 py-2 rounded text-sm font-medium transition-all" style="background-color: var(--bg-hover); color: var(--text-primary);">
+        No mostrar hasta mañana
+      </button>
+      <div class="flex gap-3">
+        <button onclick="closePendingRequestsPopup()" class="px-6 py-2 rounded font-medium transition-all" style="background-color: var(--bg-hover); color: var(--text-primary);">
+          Cerrar
+        </button>
+        <a href="/admin/leave_requests" class="px-6 py-2 rounded font-medium text-white transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
+          Ver todas las solicitudes
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="notificationsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
   <div class="rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
     <div class="flex justify-between items-center mb-6">
@@ -292,10 +354,13 @@
       if (notificationBadge) {
         notificationBadge.textContent = count > 9 ? '9+' : count;
         notificationBadge.classList.remove('hidden');
+        // Añadir animación de pulso
+        notificationBadge.classList.add('notification-pulse');
       }
     } else {
       if (notificationBadge) {
         notificationBadge.classList.add('hidden');
+        notificationBadge.classList.remove('notification-pulse');
       }
     }
   }
@@ -303,13 +368,29 @@
   // Cargar contador de notificaciones al cargar la página
   async function loadNotificationCount() {
     try {
-      const response = await fetch('/admin/notifications/leaves');
-      const data = await response.json();
+      // Obtener ambas fuentes de notificaciones en paralelo
+      const [leavesResponse, pendingResponse] = await Promise.all([
+        fetch('/admin/notifications/leaves'),
+        fetch('/admin/notifications/pending-requests')
+      ]);
 
-      if (data.success) {
-        const recentCount = data.notifications.filter(n => n.is_recent).length;
-        updateNotificationBadge(recentCount);
+      const leavesData = await leavesResponse.json();
+      const pendingData = await pendingResponse.json();
+
+      let totalCount = 0;
+
+      // Contar notificaciones de bajas auto-aprobadas recientes
+      if (leavesData.success) {
+        const recentCount = leavesData.notifications.filter(n => n.is_recent).length;
+        totalCount += recentCount;
       }
+
+      // Añadir solicitudes pendientes
+      if (pendingData.success) {
+        totalCount += pendingData.total;
+      }
+
+      updateNotificationBadge(totalCount);
     } catch (error) {
       console.error('Error al cargar contador de notificaciones:', error);
     }
@@ -376,6 +457,136 @@
 
     modal.classList.remove('hidden');
   }
+
+  // === POPUP AUTOMÁTICO DE SOLICITUDES PENDIENTES ===
+
+  const pendingRequestsPopup = document.getElementById('pendingRequestsPopup');
+
+  // Función para cargar solicitudes pendientes
+  async function loadPendingRequests() {
+    try {
+      const response = await fetch('/admin/notifications/pending-requests');
+      const data = await response.json();
+
+      if (data.success && data.total > 0) {
+        renderPendingRequests(data);
+        return data.total;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error al cargar solicitudes pendientes:', error);
+      return 0;
+    }
+  }
+
+  // Renderizar solicitudes en el popup
+  function renderPendingRequests(data) {
+    const vacacionesSection = document.getElementById('vacacionesSection');
+    const bajasSection = document.getElementById('bajasSection');
+    const ausenciasSection = document.getElementById('ausenciasSection');
+    const noRequestsMessage = document.getElementById('noRequestsMessage');
+
+    // Ocultar mensaje de "sin solicitudes"
+    noRequestsMessage.classList.add('hidden');
+
+    // Renderizar Vacaciones
+    if (data.vacaciones.length > 0) {
+      document.getElementById('vacacionesCount').textContent = data.vacaciones.length;
+      document.getElementById('vacacionesList').innerHTML = data.vacaciones.map(req => createRequestCard(req, '#3B82F6')).join('');
+      vacacionesSection.classList.remove('hidden');
+    } else {
+      vacacionesSection.classList.add('hidden');
+    }
+
+    // Renderizar Bajas
+    if (data.bajas.length > 0) {
+      document.getElementById('bajasCount').textContent = data.bajas.length;
+      document.getElementById('bajasList').innerHTML = data.bajas.map(req => createRequestCard(req, '#EF4444')).join('');
+      bajasSection.classList.remove('hidden');
+    } else {
+      bajasSection.classList.add('hidden');
+    }
+
+    // Renderizar Ausencias
+    if (data.ausencias.length > 0) {
+      document.getElementById('ausenciasCount').textContent = data.ausencias.length;
+      document.getElementById('ausenciasList').innerHTML = data.ausencias.map(req => createRequestCard(req, '#F59E0B')).join('');
+      ausenciasSection.classList.remove('hidden');
+    } else {
+      ausenciasSection.classList.add('hidden');
+    }
+  }
+
+  // Crear tarjeta de solicitud
+  function createRequestCard(req, borderColor) {
+    return `
+      <div class="p-4 rounded-lg border-l-4 transition-all hover:shadow-lg" style="background-color: var(--bg-secondary); border-left-color: ${borderColor};">
+        <div class="flex justify-between items-start mb-2">
+          <h5 class="font-semibold" style="color: var(--text-primary);">${req.employee_name}</h5>
+          <span class="text-xs px-2 py-1 rounded" style="background-color: var(--bg-hover); color: var(--text-muted);">${req.status}</span>
+        </div>
+        <div class="text-sm space-y-1" style="color: var(--text-secondary);">
+          <p><strong style="color: var(--text-primary);">Fechas:</strong> ${req.start_date} - ${req.end_date} (${req.days_count} día${req.days_count > 1 ? 's' : ''})</p>
+          <p><strong style="color: var(--text-primary);">Motivo:</strong> ${req.reason}</p>
+          <p class="text-xs" style="color: var(--text-muted);">Solicitado: ${req.created_at}</p>
+          ${req.has_attachment ? '<p class="text-xs font-semibold" style="color: var(--accent-primary);">📎 Tiene adjunto</p>' : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // Mostrar popup si es necesario
+  async function showPopupIfNeeded() {
+    // Verificar si se debe mostrar
+    const hideUntil = localStorage.getItem('hidePendingRequestsUntil');
+    const today = new Date().toDateString();
+
+    // Si el usuario dijo "no mostrar hasta mañana" y aún no es mañana
+    if (hideUntil && new Date(hideUntil).toDateString() === today) {
+      return;
+    }
+
+    // Si ya se vio en esta sesión
+    if (sessionStorage.getItem('pendingRequestsPopupSeen') === 'true') {
+      return;
+    }
+
+    // Cargar solicitudes
+    const count = await loadPendingRequests();
+
+    if (count > 0) {
+      pendingRequestsPopup.classList.remove('hidden');
+      markPopupAsSeen();
+    }
+  }
+
+  // Marcar popup como visto en esta sesión
+  function markPopupAsSeen() {
+    sessionStorage.setItem('pendingRequestsPopupSeen', 'true');
+  }
+
+  // Cerrar popup
+  function closePendingRequestsPopup() {
+    pendingRequestsPopup.classList.add('hidden');
+  }
+
+  // No mostrar hasta mañana
+  function hidePopupUntilTomorrow() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    localStorage.setItem('hidePendingRequestsUntil', tomorrow.toISOString());
+    closePendingRequestsPopup();
+  }
+
+  // Hacer funciones globales para que funcionen con onclick
+  window.closePendingRequestsPopup = closePendingRequestsPopup;
+  window.hidePopupUntilTomorrow = hidePopupUntilTomorrow;
+
+  // Mostrar popup automáticamente al cargar la página
+  window.addEventListener('load', () => {
+    setTimeout(showPopupIfNeeded, 1000); // Esperar 1 segundo para que cargue todo
+  });
 </script>
 
 {% endblock %}
