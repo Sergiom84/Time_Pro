@@ -45,43 +45,51 @@ def auto_close_open_records():
             db.session.rollback()
 
 
-def manual_auto_close_records(target_date=None):
+def manual_auto_close_records(target_date=None, is_manual=True):
     """
     Manual function to close open records for a specific date.
     Used for testing or administrative purposes.
-    
+
     Args:
         target_date: The date to close records for (defaults to today)
+        is_manual: If True, use current time. If False, use 23:59:59 (for automatic midnight close)
     """
     try:
         with current_app.app_context():
             if target_date is None:
                 target_date = date.today()
-            
-            auto_close_time = datetime.combine(target_date, dt_time(23, 59, 59))
-            
+
+            # Si es cierre manual (desde el botón), usar hora actual
+            # Si es cierre automático (medianoche), usar 23:59:59
+            if is_manual:
+                auto_close_time = datetime.now()
+            else:
+                auto_close_time = datetime.combine(target_date, dt_time(23, 59, 59))
+
             # Find all open records from the target date
             open_records = TimeRecord.query.filter(
                 TimeRecord.date == target_date,
                 TimeRecord.check_in.isnot(None),
                 TimeRecord.check_out.is_(None)
             ).all()
-            
+
             if open_records:
-                current_app.logger.info(f"Manual auto-closing {len(open_records)} open time records for {target_date}")
-                
+                close_type = "Manual" if is_manual else "Automático"
+                current_app.logger.info(f"{close_type} auto-closing {len(open_records)} open time records for {target_date}")
+
                 # Close all open records
                 for record in open_records:
                     record.check_out = auto_close_time
-                    record.notes = (record.notes or "") + (" - " if record.notes else "") + "Cerrado automáticamente"
-                
+                    close_note = "Cerrado manualmente" if is_manual else "Cerrado automáticamente"
+                    record.notes = (record.notes or "") + (" - " if record.notes else "") + close_note
+
                 # Commit all changes
                 db.session.commit()
                 return len(open_records)
             else:
                 current_app.logger.info(f"No open records to auto-close for {target_date}")
                 return 0
-                
+
     except Exception as e:
         current_app.logger.error(f"Error in manual_auto_close_records: {str(e)}")
         if db.session:
