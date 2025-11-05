@@ -636,7 +636,8 @@
       const response = await fetch(`/admin/leave_requests/approve/${requestId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
 
@@ -666,7 +667,8 @@
       const response = await fetch(`/admin/leave_requests/reject/${requestId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ reason: reason })
       });
