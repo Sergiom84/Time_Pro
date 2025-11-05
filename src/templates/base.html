@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Fichaje Laboral{% endblock %}</title>
 
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+
   <!-- Sistema de Temas CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
 
@@ -104,6 +107,7 @@
           {'endpoint': 'admin.dashboard',    'label': 'Dashboard'},
           {'endpoint': 'admin.manage_users', 'label': 'Gestionar Usuarios'},
           {'endpoint': 'admin.manage_records','label': 'Gestionar Registros'},
+          {'endpoint': 'admin.leave_requests','label': 'Gestión de Solicitudes'},
           {'endpoint': 'admin.admin_calendar',     'label': 'Calendario'},
           {'endpoint': 'export.export_excel',   'label': 'Exportar Excel'}
         ] %}
@@ -353,6 +357,357 @@
         themeArrow.style.transform = 'rotate(0deg)';
       }
     }
+
+    {% if session.get('is_admin') %}
+    // === SISTEMA DE NOTIFICACIONES ===
+
+    const notificationsBtn = document.getElementById('headerNotificationsBtn');
+    const notificationBadge = document.getElementById('headerNotificationBadge');
+    let notificationsSeen = false;
+
+    // Abrir modal de notificaciones
+    if (notificationsBtn) {
+      notificationsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const notificationsModal = document.getElementById('notificationsModal');
+        if (notificationsModal) {
+          notificationsModal.classList.remove('hidden');
+          loadNotifications();
+          // Marcar notificaciones como vistas y ocultar el badge
+          notificationsSeen = true;
+          if (notificationBadge) {
+            notificationBadge.classList.add('hidden');
+            notificationBadge.classList.remove('notification-pulse');
+          }
+        }
+      });
+    }
+
+    // Cerrar modal
+    function closeNotificationsModal() {
+      const notificationsModal = document.getElementById('notificationsModal');
+      if (notificationsModal) {
+        notificationsModal.classList.add('hidden');
+      }
+    }
+
+    // Cargar notificaciones
+    async function loadNotifications() {
+      try {
+        // Cargar SOLO solicitudes pendientes
+        const response = await fetch('/admin/notifications/pending-requests');
+        const pendingData = await response.json();
+
+        const notificationsList = document.getElementById('notificationsList');
+
+        // Función auxiliar para crear HTML de notificación con botones de acción
+        function createNotificationHTML(notif) {
+          const typeColors = {
+            'Vacaciones': '#3B82F6',
+            'Baja médica': '#EF4444',
+            'Ausencia justificada': '#F59E0B',
+            'Ausencia injustificada': '#DC2626',
+            'Permiso especial': '#8B5CF6'
+          };
+          const color = typeColors[notif.request_type] || '#6B7280';
+
+          return `
+            <div class="p-5 rounded-lg mb-4 border-l-4" style="background-color: var(--bg-secondary); border-left-color: ${color};">
+              <!-- Cabecera con info del empleado -->
+              <div class="flex justify-between items-start mb-3">
+                <div>
+                  <h4 class="font-bold text-lg" style="color: var(--text-primary);">${notif.employee_name}</h4>
+                  <span class="text-xs px-2 py-1 rounded-full text-white mt-1 inline-block" style="background-color: ${color};">
+                    ${notif.request_type}
+                  </span>
+                </div>
+                <span class="text-xs" style="color: var(--text-muted);">${notif.created_at}</span>
+              </div>
+
+              <!-- Info de la solicitud -->
+              <div class="grid grid-cols-2 gap-2 text-sm mb-3 p-3 rounded" style="background-color: var(--bg-primary);">
+                <p style="color: var(--text-secondary);"><strong style="color: var(--text-primary);">Desde:</strong> ${notif.start_date}</p>
+                <p style="color: var(--text-secondary);"><strong style="color: var(--text-primary);">Hasta:</strong> ${notif.end_date}</p>
+                <p style="color: var(--text-secondary);" class="col-span-2"><strong style="color: var(--text-primary);">Días:</strong> ${notif.days_count} día${notif.days_count > 1 ? 's' : ''}</p>
+              </div>
+
+              <!-- Motivo -->
+              ${notif.reason ? `
+                <div class="mb-3 p-3 rounded" style="background-color: var(--bg-primary);">
+                  <p class="text-sm" style="color: var(--text-secondary);">
+                    <strong style="color: var(--accent-primary);">Motivo:</strong> ${notif.reason}
+                  </p>
+                </div>
+              ` : ''}
+
+              <!-- Adjunto (si existe) -->
+              ${notif.has_attachment ? `
+                <div class="mb-3">
+                  <button onclick="viewNotificationAttachment('${notif.attachment_url}', '${notif.attachment_filename}', 'application/pdf')"
+                          class="text-sm px-3 py-2 rounded transition-all hover:opacity-80 inline-flex items-center gap-2"
+                          style="background-color: var(--accent-primary); color: white;">
+                    📎 Ver Justificante
+                  </button>
+                </div>
+              ` : ''}
+
+              <!-- Botones de Acción -->
+              <div class="flex gap-2 mt-4">
+                <button onclick="approveRequest(${notif.id})"
+                        class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                        style="background-color: #10B981; color: white;">
+                  ✓ Aprobar
+                </button>
+                <button onclick="rejectRequest(${notif.id})"
+                        class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                        style="background-color: #EF4444; color: white;">
+                  ✗ Rechazar
+                </button>
+                <button onclick="closeNotificationsModal()"
+                        class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
+                        style="background-color: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+                  ⏱ Más tarde
+                </button>
+              </div>
+            </div>
+          `;
+        }
+
+        // Recolectar todas las solicitudes pendientes
+        let allRequests = [];
+
+        if (pendingData.success) {
+          // Vacaciones pendientes
+          if (pendingData.vacaciones && pendingData.vacaciones.length > 0) {
+            allRequests = allRequests.concat(pendingData.vacaciones);
+          }
+          // Bajas pendientes
+          if (pendingData.bajas && pendingData.bajas.length > 0) {
+            allRequests = allRequests.concat(pendingData.bajas);
+          }
+          // Ausencias pendientes
+          if (pendingData.ausencias && pendingData.ausencias.length > 0) {
+            allRequests = allRequests.concat(pendingData.ausencias);
+          }
+        }
+
+        // Ordenar por fecha: más recientes primero
+        allRequests.sort((a, b) => {
+          const dateA = new Date(a.created_at.split('/').reverse().join('-') + ' ' + a.created_at.split(' ')[1]);
+          const dateB = new Date(b.created_at.split('/').reverse().join('-') + ' ' + b.created_at.split(' ')[1]);
+          return dateB - dateA; // Descendente (más recientes primero)
+        });
+
+        // Mostrar todas las solicitudes pendientes
+        if (allRequests.length > 0) {
+          notificationsList.innerHTML = allRequests.map(req => createNotificationHTML(req)).join('');
+        } else {
+          notificationsList.innerHTML = `
+            <div class="text-center py-8" style="color: var(--text-secondary);">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p>No hay notificaciones recientes</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error al cargar notificaciones:', error);
+        const notificationsList = document.getElementById('notificationsList');
+        if (notificationsList) {
+          notificationsList.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+              <p>Error al cargar las notificaciones</p>
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Actualizar badge de notificaciones
+    function updateNotificationBadge(count) {
+      // Solo mostrar badge si hay notificaciones y el usuario no las ha visto aún
+      if (count > 0 && !notificationsSeen) {
+        if (notificationBadge) {
+          notificationBadge.textContent = count > 9 ? '9+' : count;
+          notificationBadge.classList.remove('hidden');
+          // Añadir animación de pulso
+          notificationBadge.classList.add('notification-pulse');
+        }
+      } else {
+        if (notificationBadge) {
+          notificationBadge.classList.add('hidden');
+          notificationBadge.classList.remove('notification-pulse');
+        }
+      }
+    }
+
+    // Cargar contador de notificaciones al cargar la página
+    async function loadNotificationCount() {
+      try {
+        // Obtener SOLO solicitudes pendientes (no auto-aprobadas)
+        const response = await fetch('/admin/notifications/pending-requests');
+        const pendingData = await response.json();
+
+        let totalCount = 0;
+
+        // Contar solo solicitudes pendientes
+        if (pendingData.success) {
+          totalCount = pendingData.total;
+        }
+
+        updateNotificationBadge(totalCount);
+      } catch (error) {
+        console.error('Error al cargar contador de notificaciones:', error);
+      }
+    }
+
+    // Cargar al iniciar
+    window.addEventListener('load', loadNotificationCount);
+
+    // Actualizar cada 60 segundos (solo si no han sido vistas)
+    setInterval(() => {
+      if (!notificationsSeen) {
+        loadNotificationCount();
+      }
+    }, 60000);
+
+    // Función para visualizar adjuntos desde notificaciones
+    function viewNotificationAttachment(url, filename, mimeType) {
+      // Crear modal si no existe
+      let modal = document.getElementById('attachmentModalNotif');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'attachmentModalNotif';
+        modal.className = 'hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+        modal.innerHTML = `
+          <div class="rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold" style="color: var(--accent-primary);">Justificante</h3>
+              <button onclick="document.getElementById('attachmentModalNotif').classList.add('hidden')" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+            </div>
+            <div id="attachmentContentNotif" class="text-center"></div>
+            <div class="flex gap-3 mt-6">
+              <a id="downloadLinkNotif" href="#" download class="flex-1 px-6 py-3 rounded-full font-semibold text-center transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: white;">
+                ⬇️ Descargar
+              </a>
+              <button onclick="document.getElementById('attachmentModalNotif').classList.add('hidden')" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      const content = document.getElementById('attachmentContentNotif');
+      const downloadLink = document.getElementById('downloadLinkNotif');
+
+      // Configurar descarga
+      downloadLink.href = url;
+      downloadLink.download = filename;
+
+      // Mostrar contenido
+      if (mimeType && mimeType.includes('pdf')) {
+        content.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="600px" class="rounded-lg" />`;
+      } else if (mimeType && mimeType.includes('image')) {
+        content.innerHTML = `<img src="${url}" alt="${filename}" class="max-w-full max-h-[600px] mx-auto rounded-lg shadow-lg" />`;
+      } else {
+        content.innerHTML = `
+          <div class="text-gray-400">
+            <p>Archivo: <strong style="color: var(--text-primary);">${filename}</strong></p>
+            <p class="mt-4">Usa el botón "Descargar" para ver el archivo</p>
+          </div>
+        `;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    // Aprobar solicitud
+    async function approveRequest(requestId) {
+      if (!confirm('¿Estás seguro de que deseas APROBAR esta solicitud?')) return;
+
+      try {
+        const response = await fetch(`/admin/leave_requests/approve/${requestId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success !== false) {
+          alert('Solicitud aprobada correctamente');
+          // Recargar notificaciones
+          loadNotifications();
+          // Actualizar badge
+          loadNotificationCount();
+        } else {
+          alert('Error al aprobar: ' + (data.error || 'Error desconocido'));
+        }
+      } catch (error) {
+        console.error('Error al aprobar solicitud:', error);
+        alert('Error al aprobar la solicitud');
+      }
+    }
+
+    // Rechazar solicitud
+    async function rejectRequest(requestId) {
+      const reason = prompt('¿Por qué rechazas esta solicitud? (opcional)');
+      if (reason === null) return; // Usuario canceló
+
+      try {
+        const response = await fetch(`/admin/leave_requests/reject/${requestId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ reason: reason })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success !== false) {
+          alert('Solicitud rechazada correctamente');
+          // Recargar notificaciones
+          loadNotifications();
+          // Actualizar badge
+          loadNotificationCount();
+        } else {
+          alert('Error al rechazar: ' + (data.error || 'Error desconocido'));
+        }
+      } catch (error) {
+        console.error('Error al rechazar solicitud:', error);
+        alert('Error al rechazar la solicitud');
+      }
+    }
+
+    // Hacer funciones globales
+    window.closeNotificationsModal = closeNotificationsModal;
+    window.viewNotificationAttachment = viewNotificationAttachment;
+    window.approveRequest = approveRequest;
+    window.rejectRequest = rejectRequest;
+    {% endif %}
   </script>
+
+  <!-- Modal de Notificaciones (solo para admins) -->
+  {% if session.get('is_admin') %}
+  <div id="notificationsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Notificaciones de Bajas y Ausencias</h3>
+        <button onclick="closeNotificationsModal()" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+      </div>
+
+      <div id="notificationsList" class="space-y-3">
+        <!-- Las notificaciones se cargarán dinámicamente aquí -->
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </body>
 </html>
