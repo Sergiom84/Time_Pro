@@ -994,6 +994,9 @@ def leave_requests():
 @admin_required
 def approve_leave_request(request_id):
     """Aprobar una solicitud de imputación"""
+    # Detectar si es una llamada AJAX (desde la campanita) o formulario tradicional
+    is_ajax = request.headers.get('Accept', '').find('application/json') != -1
+
     try:
         centro_admin = get_admin_centro()
         admin_id = session.get("user_id")
@@ -1005,6 +1008,8 @@ def approve_leave_request(request_id):
         if centro_admin:
             user = User.query.get(leave_request.user_id)
             if user.centro != centro_admin:
+                if is_ajax:
+                    return jsonify({"success": False, "error": "No tienes permisos para aprobar esta solicitud."}), 403
                 flash("No tienes permisos para aprobar esta solicitud.", "danger")
                 return redirect(url_for("admin.leave_requests"))
 
@@ -1047,10 +1052,17 @@ def approve_leave_request(request_id):
             current_date += timedelta(days=1)
 
         db.session.commit()
+
+        # Responder según el tipo de petición
+        if is_ajax:
+            return jsonify({"success": True, "message": f"Solicitud de {leave_request.request_type} aprobada correctamente."})
+
         flash(f"Solicitud de {leave_request.request_type} aprobada correctamente.", "success")
 
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({"success": False, "error": str(e)}), 500
         flash(f"Error al aprobar la solicitud: {str(e)}", "danger")
 
     return redirect(url_for("admin.leave_requests"))
@@ -1060,6 +1072,9 @@ def approve_leave_request(request_id):
 @admin_required
 def reject_leave_request(request_id):
     """Rechazar una solicitud de imputación"""
+    # Detectar si es una llamada AJAX (desde la campanita) o formulario tradicional
+    is_ajax = request.headers.get('Accept', '').find('application/json') != -1
+
     try:
         centro_admin = get_admin_centro()
         admin_id = session.get("user_id")
@@ -1071,19 +1086,38 @@ def reject_leave_request(request_id):
         if centro_admin:
             user = User.query.get(leave_request.user_id)
             if user.centro != centro_admin:
+                if is_ajax:
+                    return jsonify({"success": False, "error": "No tienes permisos para rechazar esta solicitud."}), 403
                 flash("No tienes permisos para rechazar esta solicitud.", "danger")
                 return redirect(url_for("admin.leave_requests"))
+
+        # Obtener motivo de rechazo si viene en el body (desde AJAX)
+        reason = None
+        if is_ajax and request.is_json:
+            data = request.get_json()
+            reason = data.get('reason', '')
 
         # Rechazar la solicitud
         leave_request.status = "Rechazado"
         leave_request.approved_by = admin_id
         leave_request.approval_date = datetime.now()
 
+        # Guardar motivo de rechazo en notas si existe
+        if reason:
+            leave_request.notes = f"Rechazado: {reason}"
+
         db.session.commit()
+
+        # Responder según el tipo de petición
+        if is_ajax:
+            return jsonify({"success": True, "message": f"Solicitud de {leave_request.request_type} rechazada correctamente."})
+
         flash(f"Solicitud de {leave_request.request_type} rechazada.", "info")
 
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({"success": False, "error": str(e)}), 500
         flash(f"Error al rechazar la solicitud: {str(e)}", "danger")
 
     return redirect(url_for("admin.leave_requests"))
