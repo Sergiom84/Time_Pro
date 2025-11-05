@@ -27,12 +27,24 @@ def auto_close_open_records():
             
             if open_records:
                 current_app.logger.info(f"Auto-closing {len(open_records)} open time records for {today}")
-                
-                # Close all open records
+
+                # Close all open records and their active pauses
                 for record in open_records:
                     record.check_out = auto_close_time
                     record.notes = (record.notes or "") + (" - " if record.notes else "") + "Cerrado automáticamente"
-                
+
+                    # Cerrar también las pausas activas de este registro
+                    from models.models import WorkPause
+                    active_pauses = WorkPause.query.filter(
+                        WorkPause.time_record_id == record.id,
+                        WorkPause.pause_end.is_(None)
+                    ).all()
+
+                    for pause in active_pauses:
+                        pause.pause_end = auto_close_time
+                        pause.notes = (pause.notes or "") + (" - " if pause.notes else "") + "Cerrado automáticamente"
+                        current_app.logger.info(f"Cerrando pausa activa (ID: {pause.id}) del registro {record.id}")
+
                 # Commit all changes
                 db.session.commit()
                 current_app.logger.info(f"Successfully auto-closed {len(open_records)} records")
@@ -77,11 +89,23 @@ def manual_auto_close_records(target_date=None, is_manual=True):
                 close_type = "Manual" if is_manual else "Automático"
                 current_app.logger.info(f"{close_type} auto-closing {len(open_records)} open time records for {target_date}")
 
-                # Close all open records
+                # Close all open records and their active pauses
                 for record in open_records:
                     record.check_out = auto_close_time
                     close_note = "Cerrado manualmente" if is_manual else "Cerrado automáticamente"
                     record.notes = (record.notes or "") + (" - " if record.notes else "") + close_note
+
+                    # Cerrar también las pausas activas de este registro
+                    from models.models import WorkPause
+                    active_pauses = WorkPause.query.filter(
+                        WorkPause.time_record_id == record.id,
+                        WorkPause.pause_end.is_(None)
+                    ).all()
+
+                    for pause in active_pauses:
+                        pause.pause_end = auto_close_time
+                        pause.notes = (pause.notes or "") + (" - " if pause.notes else "") + close_note
+                        current_app.logger.info(f"Cerrando pausa activa (ID: {pause.id}) del registro {record.id}")
 
                 # Commit all changes
                 db.session.commit()
