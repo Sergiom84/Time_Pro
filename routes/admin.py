@@ -1229,3 +1229,68 @@ def get_leave_notifications():
         "notifications": notifications_data,
         "count": len(notifications_data)
     })
+
+@admin_bp.route("/notifications/pending-requests")
+@admin_required
+def get_pending_requests():
+    """Obtener solicitudes pendientes agrupadas por tipo"""
+    centro_admin = get_admin_centro()
+
+    # Consultar solicitudes pendientes o enviadas (no procesadas)
+    query = (
+        LeaveRequest.query
+        .join(User, LeaveRequest.user_id == User.id)
+        .filter(
+            LeaveRequest.status.in_(["Enviado", "Pendiente"])
+        )
+    )
+
+    # Filtrar por centro si aplica
+    if centro_admin:
+        query = query.filter(User.centro == centro_admin)
+
+    requests = query.order_by(LeaveRequest.created_at.desc()).all()
+
+    # Agrupar por tipo
+    vacaciones = []
+    bajas = []
+    ausencias = []
+
+    for req in requests:
+        days_count = (req.end_date - req.start_date).days + 1
+        request_data = {
+            "id": req.id,
+            "employee_name": req.user_rel.full_name or req.user_rel.username,
+            "employee_username": req.user_rel.username,
+            "request_type": req.request_type,
+            "start_date": req.start_date.strftime("%d/%m/%Y"),
+            "end_date": req.end_date.strftime("%d/%m/%Y"),
+            "days_count": days_count,
+            "reason": req.reason or "Sin motivo especificado",
+            "created_at": req.created_at.strftime("%d/%m/%Y %H:%M"),
+            "status": req.status,
+            "has_attachment": req.attachment_url is not None,
+            "attachment_url": req.attachment_url,
+            "attachment_filename": req.attachment_filename
+        }
+
+        # Clasificar por tipo
+        if req.request_type == "Vacaciones":
+            vacaciones.append(request_data)
+        elif req.request_type == "Baja médica":
+            bajas.append(request_data)
+        elif req.request_type in ["Ausencia justificada", "Ausencia injustificada", "Permiso especial"]:
+            ausencias.append(request_data)
+
+    return jsonify({
+        "success": True,
+        "vacaciones": vacaciones,
+        "bajas": bajas,
+        "ausencias": ausencias,
+        "total": len(requests),
+        "counts": {
+            "vacaciones": len(vacaciones),
+            "bajas": len(bajas),
+            "ausencias": len(ausencias)
+        }
+    })
