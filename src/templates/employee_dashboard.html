@@ -202,15 +202,16 @@
             </div>
           </div>
 
-          <div id="otherReasonDiv" class="hidden">
-            <label for="pauseNotes" class="block mb-2 font-semibold" style="color: var(--text-primary);">Especificar motivo:</label>
+          <!-- Campo de notas (siempre visible) -->
+          <div>
+            <label for="pauseNotes" class="block mb-2 font-semibold" style="color: var(--text-primary);">Notas (opcional):</label>
             <textarea
               id="pauseNotes"
               name="pauseNotes"
               rows="3"
               class="w-full px-4 py-3 rounded-lg"
               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);"
-              placeholder="Describe el motivo de la pausa..."
+              placeholder="Añade una nota o comentario sobre esta pausa..."
             ></textarea>
           </div>
 
@@ -474,23 +475,14 @@
     function closePauseModal() {
       document.getElementById('pauseModal').classList.add('hidden');
       document.getElementById('pauseForm').reset();
-      document.getElementById('otherReasonDiv').classList.add('hidden');
     }
 
-    // Mostrar/ocultar campo de notas para "Otros" y campo de adjunto para "Asuntos médicos"
+    // Mostrar/ocultar campo de adjunto para "Asuntos médicos"
     document.querySelectorAll('input[name="pauseType"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
-        const otherDiv = document.getElementById('otherReasonDiv');
         const attachmentDiv = document.getElementById('attachmentDiv');
 
-        // Mostrar campo de notas para "Otros"
-        if (e.target.value === 'Otros') {
-          otherDiv.classList.remove('hidden');
-        } else {
-          otherDiv.classList.add('hidden');
-        }
-
-        // Mostrar campo de adjunto para "Asuntos médicos"
+        // Mostrar campo de adjunto solo para "Asuntos médicos"
         if (e.target.value === 'Asuntos médicos') {
           attachmentDiv.classList.remove('hidden');
         } else {
@@ -621,7 +613,7 @@
       e.preventDefault();
 
       const pauseType = document.querySelector('input[name="pauseType"]:checked').value;
-      const notes = pauseType === 'Otros' ? document.getElementById('pauseNotes').value : '';
+      const notes = document.getElementById('pauseNotes').value || '';
       const fileInput = document.getElementById('pauseAttachment');
       const hasFile = fileInput.files.length > 0;
 
