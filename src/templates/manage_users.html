@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
-{% block title %}Gestionar Usuarios - Miss Sushi{% endblock %}
+{% block title %}Gestionar Usuarios - TimeTracker{% endblock %}
 
-{% block header %}<span class="text-miss-sushi-pink">Gestionar Usuarios</span>{% endblock %}
+{% block header %}<span class="text-timetracker-primary">Gestionar Usuarios</span>{% endblock %}
 
 {% block content %}
 <section class="bg-gray-800 shadow-md rounded-lg p-6 mb-6">
@@ -83,7 +83,7 @@
                   <td class="px-3 py-2 whitespace-nowrap">
                       <div class="flex items-center gap-2">
                           <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
-                             class="inline-block py-1 px-2.5 rounded bg-miss-sushi-grey text-white hover:opacity-90 transition-opacity duration-300 ease-in-out text-xs">
+                             class="inline-block py-1 px-2.5 rounded bg-timetracker-secondary text-white hover:opacity-90 transition-opacity duration-300 ease-in-out text-xs">
                               Editar
                           </a>
                           <form action="{{ url_for('admin.toggle_user_active', user_id=user.id) }}" method="POST" class="inline">

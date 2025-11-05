@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
-{% block title %}Historial de Fichajes - Miss Sushi{% endblock %}
+{% block title %}Historial de Fichajes - TimeTracker{% endblock %}
 
-{% block header %}<span class="text-miss-sushi-pink">Historial Completo de Fichajes</span>{% endblock %}
+{% block header %}<span class="text-timetracker-primary">Historial Completo de Fichajes</span>{% endblock %}
 
 {% block content %}
 <div class="overflow-x-auto bg-gray-900 border border-gray-700 rounded-lg shadow-md">
@@ -41,7 +41,7 @@
 {# Optional: Add pagination links here if needed, styled appropriately #}
 
 <div class="mt-6 text-center">
-     <a href="{{ url_for('time.dashboard') }}" class="text-miss-sushi-pink hover:underline">Volver al Panel</a>
+     <a href="{{ url_for('time.dashboard') }}" class="text-timetracker-primary hover:underline">Volver al Panel</a>
 </div>
 {% endblock %}
 

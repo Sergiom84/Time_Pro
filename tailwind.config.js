@@ -7,8 +7,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'miss-sushi-pink': '#E85D8A',
-        'miss-sushi-grey': '#4A4A4A',
+        'timetracker-primary': '#E85D8A',
+        'timetracker-secondary': '#4A4A4A',
       }
     },
   },
