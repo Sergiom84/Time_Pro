@@ -1,10 +1,164 @@
 {% extends "base.html" %}
 {% block title %}Exportar a Excel - Admin{% endblock %}
-{% block header %}<span class="text-miss-sushi-pink">Exportar Registros a Excel</span>{% endblock %}
+{% block header %}<span class="text-timetracker-primary">Exportar Registros a Excel</span>{% endblock %}
 
 {% block content %}
 <section class="bg-gray-900 shadow-md rounded-lg p-6 mb-8">
     <form method="POST" action="{{ url_for('export.export_excel') }}">
+    <!-- Globo 2: Filtros avanzados y descargas diarias -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-8">
+        <!-- Fila 4: Todos los filtros (COMENTADO - REDUNDANTE) -->
+        <!--
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
+            <div class="text-center">
+                <label for="centro4" class="block text-gray-400 text-sm font-bold mb-2">Centro</label>
+                <select id="centro4" name="centro4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
+                    {% if session.get('is_admin') and centro_admin %}
+                        <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
+                    {% else %}
+                        <option value="">Todos</option>
+                        <option value="Centro 1">Centro 1</option>
+                        <option value="Centro 2">Centro 2</option>
+                        <option value="Centro 3">Centro 3</option>
+                    {% endif %}
+                </select>
+                <button type="submit" name="excel_solo_centro" value="1"
+                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Centro">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="text-center">
+                <label for="usuario4" class="block text-gray-400 text-sm font-bold mb-2">Usuario</label>
+                <select id="usuario4" name="usuario4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
+                    <option value="">Todos</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.username }} ({{ user.full_name }})</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="excel_solo_usuario" value="1"
+                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Usuario">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="text-center">
+                <label for="categoria4" class="block text-gray-400 text-sm font-bold mb-2">Categoría</label>
+                <select id="categoria4" name="categoria4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
+                    <option value="">Todas</option>
+                    <option value="Coordinador">Coordinador</option>
+                    <option value="Empleado">Empleado</option>
+                    <option value="Gestor">Gestor</option>
+                </select>
+                <button type="submit" name="excel_solo_categoria" value="1"
+                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Categoría">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="text-center">
+                <label for="horas4" class="block text-gray-400 text-sm font-bold mb-2">Horas de trabajo</label>
+                <select id="horas4" name="horas4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
+                    <option value="">Todas</option>
+                    {% for h in horas_sorted %}
+                        <option value="{{ h }}">{{ h }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="excel_solo_horas" value="1"
+                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Horas">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        -->
+        <!-- Filtros de Estado -->
+        <div class="mb-8">
+            <div class="flex flex-wrap gap-4">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="status" value="Trabajado" checked
+                           class="h-4 w-4 rounded focus:ring-2 focus:ring-blue-500"
+                           style="accent-color: #3B82F6;">
+                    <span class="text-sm font-medium" style="color: #3B82F6;">Trabajado</span>
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="status" value="Baja"
+                           class="h-4 w-4 rounded focus:ring-2 focus:ring-red-500"
+                           style="accent-color: #EF4444;">
+                    <span class="text-sm font-medium" style="color: #EF4444;">Baja</span>
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="status" value="Ausente"
+                           class="h-4 w-4 rounded focus:ring-2 focus:ring-yellow-500"
+                           style="accent-color: #F59E0B;">
+                    <span class="text-sm font-medium" style="color: #F59E0B;">Ausente</span>
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="status" value="Vacaciones"
+                           class="h-4 w-4 rounded focus:ring-2 focus:ring-green-500"
+                           style="accent-color: #10B981;">
+                    <span class="text-sm font-medium" style="color: #10B981;">Vacaciones</span>
+                </label>
+            </div>
+        </div>
+        <!-- Fechas -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end mb-8">
+            <div>
+                <label for="start_date" class="block text-gray-400 text-sm font-bold mb-2">Fecha de Inicio</label>
+                <input type="date" id="start_date" name="start_date"
+                       class="shadow appearance-auto border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300 leading-tight focus:outline-none focus:shadow-outline focus:border-cyan-500">
+            </div>
+            <div>
+                <label for="end_date" class="block text-gray-400 text-sm font-bold mb-2">Fecha de Fin</label>
+                <input type="date" id="end_date" name="end_date"
+                       class="shadow appearance-auto border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300 leading-tight focus:outline-none focus:shadow-outline focus:border-cyan-500">
+            </div>
+        </div>
+        <!-- Botones de descarga SOLO DOS, CENTRADOS -->
+        <div class="flex flex-col md:flex-row justify-center items-center gap-4">
+            <button type="submit" name="export_daily_excel" value="1"
+                    class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow text-center">
+               Excel Diario
+            </button>
+            <button type="submit" name="export_daily_pdf" value="1"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow text-center">
+               PDF Diario
+            </button>
+        </div>
+        <!-- MODAL para advertencia de fechas -->
+        <div id="dateModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden">
+            <div class="bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md text-center">
+                <h3 class="text-lg font-bold mb-2 text-gray-100">Descarga de Excel</h3>
+                <p class="text-gray-200 mb-4">
+                    No se han seleccionado fechas. ¿Desea continuar con la descarga solo para el día de hoy,<br>
+                    o prefiere modificar las fechas antes de proceder?
+                </p>
+                <div class="flex justify-center gap-4">
+                    <button id="modalAcceptBtn" type="button"
+                        class="text-white font-bold py-2 px-6 rounded shadow transition-all hover:opacity-90"
+                        style="background-color: var(--accent-primary);">
+                        Descargar solo hoy
+                    </button>
+                    <button id="modalEditBtn" type="button"
+                        class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-6 rounded shadow">
+                        Modificar fechas
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Globo 1: Filtros rápidos por ubicación -->
     <div class="bg-gray-800 rounded-lg p-6 mb-8">
         <!-- Fila 1: Centro + Usuario + Botón -->
@@ -30,15 +184,18 @@
             </div>
             <div class="col-span-4 flex gap-2">
                 <button type="submit" name="excel_centro_usuario" value="1"
-                        class="h-10 flex-1 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Ubicación + Usuario
+                        class="h-10 flex-1 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Ubicación + Usuario">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
                 </button>
                 <button type="submit" name="excel_centro_usuario" value="1"
                         class="h-10 flex-1 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
                         style="background-color: var(--accent-primary);"
                         formaction="{{ url_for('export.export_excel_monthly') }}">
-                    Mensual / Semanal
+                    Resumen
                 </button>
             </div>
         </div>
@@ -68,9 +225,12 @@
             </div>
             <div class="col-span-4 text-center">
                 <button type="submit" name="excel_centro_categoria" value="1"
-                        class="h-10 w-full px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Ubicación + Categoría
+                        class="h-10 w-full px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Ubicación + Categoría">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
                 </button>
             </div>
         </div>
@@ -97,121 +257,13 @@
             </div>
             <div class="col-span-4 text-center">
                 <button type="submit" name="excel_centro_horas" value="1"
-                        class="h-10 w-full px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Ubicación + Horas
+                        class="h-10 w-full px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center"
+                        style="background-color: var(--accent-primary);"
+                        title="Ubicación + Horas">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
                 </button>
-            </div>
-        </div>
-    </div>
-    <!-- Globo 2: Filtros avanzados y descargas diarias -->
-    <div class="bg-gray-800 rounded-lg p-6 mb-8">
-        <!-- Fila 4: Todos los filtros -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
-            <div class="text-center">
-                <label for="centro4" class="block text-gray-400 text-sm font-bold mb-2">Centro</label>
-                <select id="centro4" name="centro4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
-                    {% if session.get('is_admin') and centro_admin %}
-                        <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
-                    {% else %}
-                        <option value="">Todos</option>
-                        <option value="Centro 1">Centro 1</option>
-                        <option value="Centro 2">Centro 2</option>
-                        <option value="Centro 3">Centro 3</option>
-                    {% endif %}
-                </select>
-                <button type="submit" name="excel_solo_centro" value="1"
-                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Centro
-                </button>
-            </div>
-            <div class="text-center">
-                <label for="usuario4" class="block text-gray-400 text-sm font-bold mb-2">Usuario</label>
-                <select id="usuario4" name="usuario4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
-                    <option value="">Todos</option>
-                    {% for user in users %}
-                    <option value="{{ user.id }}">{{ user.username }} ({{ user.full_name }})</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" name="excel_solo_usuario" value="1"
-                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Usuario
-                </button>
-            </div>
-            <div class="text-center">
-                <label for="categoria4" class="block text-gray-400 text-sm font-bold mb-2">Categoría</label>
-                <select id="categoria4" name="categoria4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
-                    <option value="">Todas</option>
-                    <option value="Coordinador">Coordinador</option>
-                    <option value="Empleado">Empleado</option>
-                    <option value="Gestor">Gestor</option>
-                </select>
-                <button type="submit" name="excel_solo_categoria" value="1"
-                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Categoría
-                </button>
-            </div>
-            <div class="text-center">
-                <label for="horas4" class="block text-gray-400 text-sm font-bold mb-2">Horas de trabajo</label>
-                <select id="horas4" name="horas4" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
-                    <option value="">Todas</option>
-                    {% for h in horas_sorted %}
-                        <option value="{{ h }}">{{ h }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" name="excel_solo_horas" value="1"
-                        class="mt-2 w-full h-10 px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                    Horas
-                </button>
-            </div>
-        </div>
-        <!-- Fila 5: Fechas -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end mb-8">
-            <div>
-                <label for="start_date" class="block text-gray-400 text-sm font-bold mb-2">Fecha de Inicio</label>
-                <input type="date" id="start_date" name="start_date"
-                       class="shadow appearance-auto border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300 leading-tight focus:outline-none focus:shadow-outline focus:border-cyan-500">
-            </div>
-            <div>
-                <label for="end_date" class="block text-gray-400 text-sm font-bold mb-2">Fecha de Fin</label>
-                <input type="date" id="end_date" name="end_date"
-                       class="shadow appearance-auto border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300 leading-tight focus:outline-none focus:shadow-outline focus:border-cyan-500">
-            </div>
-        </div>
-        <!-- Botones de descarga SOLO DOS, CENTRADOS -->
-        <div class="flex flex-col md:flex-row justify-center items-center gap-4">
-            <a href="{{ url_for('export.export_excel_daily') }}?fecha={{ today }}"
-               class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow text-center block">
-               Excel Diario
-            </a>
-            <a href="{{ url_for('export.export_pdf_daily') }}?fecha={{ today }}"
-               class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow text-center block">
-               PDF Diario
-            </a>
-        </div>
-        <!-- MODAL para advertencia de fechas -->
-        <div id="dateModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden">
-            <div class="bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md text-center">
-                <h3 class="text-lg font-bold mb-2 text-gray-100">Descarga de Excel</h3>
-                <p class="text-gray-200 mb-4">
-                    No se han seleccionado fechas. ¿Desea continuar con la descarga solo para el día de hoy,<br>
-                    o prefiere modificar las fechas antes de proceder?
-                </p>
-                <div class="flex justify-center gap-4">
-                    <button id="modalAcceptBtn" type="button"
-                        class="text-white font-bold py-2 px-6 rounded shadow transition-all hover:opacity-90"
-                        style="background-color: var(--accent-primary);">
-                        Descargar solo hoy
-                    </button>
-                    <button id="modalEditBtn" type="button"
-                        class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-6 rounded shadow">
-                        Modificar fechas
-                    </button>
-                </div>
             </div>
         </div>
     </div>
