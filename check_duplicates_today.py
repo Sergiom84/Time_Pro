@@ -8,22 +8,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask
-from urllib.parse import quote_plus
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
-supabase_password = "OPt0u_oag6Pir5MR0@"
-supabase_password_encoded = quote_plus(supabase_password)
-supabase_dsn = (
-    f"postgresql://postgres.gqesfclbingbihakiojm:"
-    f"{supabase_password_encoded}@"
-    f"aws-1-eu-west-1.pooler.supabase.com:6543/"
-    f"postgres"
-)
-
-uri = os.getenv("DATABASE_URL") or supabase_dsn
-uri = uri.replace("postgres://", "postgresql://")
+uri = os.getenv("DATABASE_URL")
+if uri:
+    uri = uri.replace("postgres://", "postgresql://")
+else:
+    # Desarrollo local: SQLite por defecto (no exponer secretos)
+    instance_dir = os.path.join(os.path.dirname(__file__), 'instance')
+    os.makedirs(instance_dir, exist_ok=True)
+    uri = f"sqlite:///{os.path.join(instance_dir, 'app.db')}"
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

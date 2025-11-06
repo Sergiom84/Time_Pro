@@ -62,7 +62,18 @@ uri = os.getenv("DATABASE_URL") or supabase_dsn
 # Normalizar si viniera como postgres://
 uri = uri.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
-print("Usando BD:", app.config['SQLALCHEMY_DATABASE_URI'], file=sys.stderr)
+
+def _mask_dsn(dsn: str) -> str:
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(dsn)
+        if p.password:
+            return dsn.replace(p.password, "****")
+        return dsn
+    except Exception:
+        return dsn
+
+print("Usando BD:", _mask_dsn(app.config['SQLALCHEMY_DATABASE_URI']), file=sys.stderr)
 
 # Configure SQLAlchemy engine options based on environment
 is_production = os.getenv('DYNO') or os.getenv('RENDER')
