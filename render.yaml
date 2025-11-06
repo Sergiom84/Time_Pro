@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: timetracker
+    name: timepro-lite
     env: python
     plan: free
     buildCommand: "./build.sh"
@@ -10,3 +10,21 @@ services:
         value: 3.11.4
       - key: FLASK_ENV
         value: production
+      - key: APP_PLAN
+        value: lite
+      # Configure DATABASE_URL per client in Render Dashboard secrets
+
+  - type: web
+    name: timepro-pro
+    env: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn --worker-class eventlet -w 1 -b 0.0.0.0:$PORT wsgi:app --timeout 120"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.4
+      - key: FLASK_ENV
+        value: production
+      - key: APP_PLAN
+        value: pro
+      # Configure DATABASE_URL per client in Render Dashboard secrets

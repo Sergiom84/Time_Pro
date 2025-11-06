@@ -159,12 +159,42 @@
             </div>
         </div>
     </div>
-    <!-- Globo 1: Filtros rápidos por ubicación -->
+
+    {% if not plan_config.show_center_selector %}
+    <!-- Sección para versión LITE: Solo empleados -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div class="col-span-8 text-center">
+                <label for="usuario_lite" class="block text-gray-400 text-sm font-bold mb-2">Empleado</label>
+                <select id="usuario_lite" name="usuario1" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
+                    <option value="">Todos los empleados</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.full_name }} ({{ user.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-span-4">
+                <button type="submit" name="excel_centro_usuario" value="1"
+                        class="h-10 w-full px-4 py-2 text-white text-sm rounded focus:outline-none font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                        style="background-color: var(--accent-primary);"
+                        formaction="{{ url_for('export.export_excel_monthly') }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Resumen
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if plan_config.show_center_selector %}
+    <!-- Globo 1: Filtros rápidos por ubicación (SOLO VERSIÓN PRO) -->
     <div class="bg-gray-800 rounded-lg p-6 mb-8">
         <!-- Fila 1: Centro + Usuario + Botón -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4 items-end">
             <div class="col-span-3 text-center">
-                <label for="centro1" class="block text-gray-400 text-sm font-bold mb-2">Centro</label>
+                <label for="centro1" class="block text-gray-400 text-sm font-bold mb-2">{{ plan_config.center_label }}</label>
                 <select id="centro1" name="centro1" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
                     {% if session.get('is_admin') and centro_admin %}
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
@@ -202,7 +232,7 @@
         <!-- Fila 2: Centro + Categoría + Botón -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4 items-end">
             <div class="col-span-3 text-center">
-                <label for="centro2" class="block text-gray-400 text-sm font-bold mb-2">Centro</label>
+                <label for="centro2" class="block text-gray-400 text-sm font-bold mb-2">{{ plan_config.center_label }}</label>
                 <select id="centro2" name="centro2" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
                     {% if session.get('is_admin') and centro_admin %}
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
@@ -237,7 +267,7 @@
         <!-- Fila 3: Centro + Horas + Botón -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4 items-end">
             <div class="col-span-3 text-center">
-                <label for="centro3" class="block text-gray-400 text-sm font-bold mb-2">Centro</label>
+                <label for="centro3" class="block text-gray-400 text-sm font-bold mb-2">{{ plan_config.center_label }}</label>
                 <select id="centro3" name="centro3" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
                     {% if session.get('is_admin') and centro_admin %}
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
@@ -267,6 +297,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
     </form>
 </section>
 
@@ -279,59 +310,65 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalAcceptBtn = document.getElementById('modalAcceptBtn');
     const modalEditBtn = document.getElementById('modalEditBtn');
 
-    // --- Fila 1: Centro + Usuario ---
+    // --- Fila 1: Centro + Usuario (solo versión Pro) ---
     const centro1 = document.getElementById('centro1');
     const usuario1 = document.getElementById('usuario1');
-    centro1.addEventListener('change', function() {
-        usuario1.innerHTML = '<option value="">Todos</option>';
-        if (!centro1.value) return;
-        fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro1.value)}`)
-            .then(r => r.json())
-            .then(data => {
-                data.usuarios.forEach(u => {
-                    const opt = document.createElement('option');
-                    opt.value = u.id;
-                    opt.textContent = u.username + ' (' + u.full_name + ')';
-                    usuario1.appendChild(opt);
+    if (centro1 && usuario1) {
+        centro1.addEventListener('change', function() {
+            usuario1.innerHTML = '<option value="">Todos</option>';
+            if (!centro1.value) return;
+            fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro1.value)}`)
+                .then(r => r.json())
+                .then(data => {
+                    data.usuarios.forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = u.username + ' (' + u.full_name + ')';
+                        usuario1.appendChild(opt);
+                    });
                 });
-            });
-    });
+        });
+    }
 
-    // --- Fila 2: Centro + Categoría ---
+    // --- Fila 2: Centro + Categoría (solo versión Pro) ---
     const centro2 = document.getElementById('centro2');
     const categoria2 = document.getElementById('categoria2');
-    centro2.addEventListener('change', function() {
-        categoria2.innerHTML = '<option value="">Todas</option>';
-        if (!centro2.value) return;
-        fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro2.value)}`)
-            .then(r => r.json())
-            .then(data => {
-                data.categorias.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat;
-                    opt.textContent = cat;
-                    categoria2.appendChild(opt);
+    if (centro2 && categoria2) {
+        centro2.addEventListener('change', function() {
+            categoria2.innerHTML = '<option value="">Todas</option>';
+            if (!centro2.value) return;
+            fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro2.value)}`)
+                .then(r => r.json())
+                .then(data => {
+                    data.categorias.forEach(cat => {
+                        const opt = document.createElement('option');
+                        opt.value = cat;
+                        opt.textContent = cat;
+                        categoria2.appendChild(opt);
+                    });
                 });
-            });
-    });
+        });
+    }
 
-    // --- Fila 3: Centro + Horas ---
+    // --- Fila 3: Centro + Horas (solo versión Pro) ---
     const centro3 = document.getElementById('centro3');
     const horas3 = document.getElementById('horas3');
-    centro3.addEventListener('change', function() {
-        horas3.innerHTML = '<option value="">Todas</option>';
-        if (!centro3.value) return;
-        fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro3.value)}`)
-            .then(r => r.json())
-            .then(data => {
-                data.horas.forEach(h => {
-                    const opt = document.createElement('option');
-                    opt.value = h;
-                    opt.textContent = h;
-                    horas3.appendChild(opt);
+    if (centro3 && horas3) {
+        centro3.addEventListener('change', function() {
+            horas3.innerHTML = '<option value="">Todas</option>';
+            if (!centro3.value) return;
+            fetch(`/admin/api/centro_info?centro=${encodeURIComponent(centro3.value)}`)
+                .then(r => r.json())
+                .then(data => {
+                    data.horas.forEach(h => {
+                        const opt = document.createElement('option');
+                        opt.value = h;
+                        opt.textContent = h;
+                        horas3.appendChild(opt);
+                    });
                 });
-            });
-    });
+        });
+    }
 
     // --- Modal fechas para todos los botones de Excel ---
     let lastSubmitter = null;

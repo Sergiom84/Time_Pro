@@ -18,9 +18,10 @@
 <section class="bg-gray-800 shadow-md rounded-lg p-6 mb-6">
     <!-- ----------------  FILTROS  ---------------- -->
     <form id="calendar-filters" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4">
+      {% if plan_config.show_center_selector %}
       <!-- Centro -->
       <div>
-        <label for="centro" class="block text-sm mb-1">Centro</label>
+        <label for="centro" class="block text-sm mb-1">{{ plan_config.center_label }}</label>
         <select id="centro" name="centro"
                 class="w-full px-3 py-2 rounded bg-gray-800 text-gray-200 border border-gray-700">
           {% if centro_admin %}
@@ -33,6 +34,7 @@
           {% endif %}
         </select>
       </div>
+      {% endif %}
 
       <!-- Usuario -->
       <div>
@@ -178,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     baseQuery = {
       user_id : form.user_id.value,
-      centro  : form.centro.value,
+      centro  : form.centro ? form.centro.value : '',
       start   : form.start.value,
       end     : form.end.value
     };
@@ -186,18 +188,21 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleFichaButton();
   });
 
-  form.centro.addEventListener('change', () => {
-    baseQuery = {
-      user_id : '',
-      centro  : form.centro.value,
-      start   : form.start.value,
-      end     : form.end.value
-    };
-    form.user_id.value = '';
-    loadEmployees(form.centro.value);
-    calendar.refetchEvents();
-    toggleFichaButton();
-  });
+  // Solo agregar listener de centro si existe (versión Pro)
+  if (form.centro) {
+    form.centro.addEventListener('change', () => {
+      baseQuery = {
+        user_id : '',
+        centro  : form.centro.value,
+        start   : form.start.value,
+        end     : form.end.value
+      };
+      form.user_id.value = '';
+      loadEmployees(form.centro.value);
+      calendar.refetchEvents();
+      toggleFichaButton();
+    });
+  }
 
   document.getElementById('reset-filters').onclick = () => {
     baseQuery = {};
