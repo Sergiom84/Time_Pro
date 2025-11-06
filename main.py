@@ -13,6 +13,7 @@ from routes.auth import auth_bp
 from routes.time import time_bp
 from routes.admin import admin_bp
 from routes.export import export_bp
+import plan_config  # Sistema de configuración multi-plan
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -122,7 +123,7 @@ migrate = Migrate(app, db)
 def shutdown_session(exception=None):
     db.session.remove()
 
-# Context processor para hacer disponible el usuario actual y saludo
+# Context processor para hacer disponible el usuario actual, saludo y configuración del plan
 @app.context_processor
 def inject_user():
     from flask import session
@@ -154,7 +155,24 @@ def inject_user():
     else:
         current_theme = 'dark-turquoise'  # Tema por defecto para usuarios no autenticados
 
-    return dict(current_user=user, greeting=greeting, current_theme=current_theme)
+    # Inyectar configuración del plan en todos los templates
+    plan_config_dict = {
+        'plan': plan_config.get_plan(),
+        'is_lite': plan_config.is_lite(),
+        'is_pro': plan_config.is_pro(),
+        'show_center_selector': plan_config.SHOW_CENTER_SELECTOR,
+        'center_label': plan_config.CENTER_LABEL,
+        'center_label_plural': plan_config.CENTER_LABEL_PLURAL,
+        'max_employees': plan_config.MAX_EMPLOYEES,
+        'features': plan_config.get_config()['features']
+    }
+
+    return dict(
+        current_user=user,
+        greeting=greeting,
+        current_theme=current_theme,
+        plan_config=plan_config_dict
+    )
 
 # Registrar blueprints
 app.register_blueprint(auth_bp)
@@ -249,7 +267,7 @@ def init_scheduler():
 
         # Import the task functions
         from tasks.scheduler import auto_close_open_records
-        from tasks.email_service import check_and_send_notifications
+        from tasks.email_service_v3 import check_and_send_notifications_v3
 
         # Schedule the auto-close task to run daily at 23:59:59
         scheduler.add_job(
@@ -261,11 +279,12 @@ def init_scheduler():
         )
 
         # Schedule the email notification check to run every 5 minutes
+        # USANDO VERSIÓN V3 con LOCK DISTRIBUIDO para prevenir duplicados en múltiples workers
         scheduler.add_job(
-            func=lambda: check_and_send_notifications(app, mail),
+            func=lambda: check_and_send_notifications_v3(app, mail),
             trigger=CronTrigger(minute='*/5'),
-            id='email_notifications',
-            name='Check and send email notifications',
+            id='email_notifications_v3',
+            name='Check and send email notifications V3 (with distributed lock)',
             replace_existing=True
         )
 

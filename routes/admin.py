@@ -6,6 +6,7 @@ from functools import wraps
 from datetime import datetime, date, timedelta
 from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause
 from models.database import db
+import plan_config  # Sistema de configuración multi-plan
 
 admin_bp = Blueprint(
     "admin", __name__,
@@ -244,6 +245,23 @@ def add_user():
         # Si el admin tiene un centro asignado, forzar que el usuario nuevo también lo tenga
         if centro_admin:
             centro = centro_admin
+
+        # VALIDACIÓN DE LÍMITE DE EMPLEADOS (VERSION LITE)
+        if plan_config.MAX_EMPLOYEES is not None:
+            # Contar empleados actuales (excluyendo admins)
+            query = User.query.filter_by(is_admin=False)
+            if centro:
+                query = query.filter_by(centro=centro)
+            current_employee_count = query.count()
+
+            # Verificar si se alcanzó el límite
+            if current_employee_count >= plan_config.MAX_EMPLOYEES:
+                flash(plan_config.get_config()['messages']['employee_limit_reached'], "warning")
+                if plan_config.get_config()['messages']['upgrade_prompt']:
+                    flash(plan_config.get_config()['messages']['upgrade_prompt'], "info")
+                return render_template("user_form.html", user=None, action="add",
+                                       form_data=request.form, centro_admin=centro_admin,
+                                       centros=centros, categorias=categorias)
         hire_date_str = request.form.get("hire_date")
         termination_date_str = request.form.get("termination_date")
 
