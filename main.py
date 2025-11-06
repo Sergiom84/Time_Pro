@@ -76,12 +76,20 @@ if is_production:
         "pool_timeout": 30
     }
 else:
-    # Development environment - use default pooling
+    # Development environment - use minimal pooling (Supabase free tier)
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
-        "pool_timeout": 20,
-        "max_overflow": 0
+        "pool_size": 1,           # Solo 1 conexión (mínimo absoluto)
+        "max_overflow": 1,        # 1 extra si es necesario
+        "pool_timeout": 30,
+        "connect_args": {
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        }
     }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

@@ -50,7 +50,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-6 gap-3 items-end">
+    <div class="grid grid-cols-1 lg:grid-cols-{{ '6' if plan_config.show_center_selector else '5' }} gap-3 items-end">
       <div class="lg:col-span-2">
         <label for="date" class="block text-xs text-gray-400 mb-1">Filtrar por fecha</label>
         <input type="date"
@@ -60,8 +60,9 @@
                class="w-full px-3 py-2 rounded bg-gray-900 text-gray-200 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
       </div>
 
+      {% if plan_config.show_center_selector %}
       <div>
-        <label for="centro" class="block text-xs text-gray-400 mb-1">Centro</label>
+        <label for="centro" class="block text-xs text-gray-400 mb-1">{{ plan_config.center_label }}</label>
         <select name="centro" id="centro" class="w-full px-3 py-2 rounded bg-gray-900 text-gray-200 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
           {% if not centro_admin %}
             <option value="all" {% if filter_centro == 'all' %}selected{% endif %}>Todos</option>
@@ -71,6 +72,7 @@
           {% endfor %}
         </select>
       </div>
+      {% endif %}
 
       <div>
         <label for="categoria" class="block text-xs text-gray-400 mb-1">Categoría</label>
@@ -126,7 +128,9 @@
         <thead class="bg-gray-900 text-left text-gray-400 uppercase text-xs">
           <tr>
             <th class="px-3 py-3 border-b border-gray-700">Empleado</th>
-            <th class="px-3 py-3 border-b border-gray-700">Centro</th>
+            {% if plan_config.show_center_selector %}
+            <th class="px-3 py-3 border-b border-gray-700">{{ plan_config.center_label }}</th>
+            {% endif %}
             <th class="px-3 py-3 border-b border-gray-700">Tipo de Pausa</th>
             <th class="px-3 py-3 border-b border-gray-700">Hora Inicio</th>
             <th class="px-3 py-3 border-b border-gray-700">Hora Fin</th>
@@ -143,9 +147,11 @@
                 <div class="font-medium">{{ pause.user_rel.full_name }}</div>
                 <div class="text-xs text-gray-400">{{ pause.user_rel.username }}</div>
               </td>
+              {% if plan_config.show_center_selector %}
               <td class="px-3 py-3 whitespace-nowrap">
                 {{ pause.user_rel.centro or 'Sin centro' }}
               </td>
+              {% endif %}
               <td class="px-3 py-3 whitespace-nowrap">
                 <span class="px-2 py-1 text-xs rounded-full"
                       style="background-color:

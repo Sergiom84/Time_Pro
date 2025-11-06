@@ -48,8 +48,9 @@
           <option value="Gestor" {{ 'selected' if request.args.get('categoria') == 'Gestor' else '' }}>Gestor</option>
         </select>
       </div>
+      {% if plan_config.show_center_selector %}
       <div>
-        <label class="block text-xs text-gray-400 mb-1">Centro</label>
+        <label class="block text-xs text-gray-400 mb-1">{{ plan_config.center_label }}</label>
         <select name="centro" class="w-full px-3 py-2 rounded bg-gray-800 text-gray-200 border border-gray-700">
           <option value="">Todos</option>
           {% for c in centros %}
@@ -57,6 +58,7 @@
           {% endfor %}
         </select>
       </div>
+      {% endif %}
       <div>
         <label class="block text-xs text-gray-400 mb-1">Buscar Usuario</label>
         <input type="text"
@@ -85,7 +87,9 @@
             <th class="px-3 py-2 border-b border-gray-700">Tiempo Trabajado</th>
             <th class="px-3 py-2 border-b border-gray-700">Horas Restantes</th>
             <th class="px-3 py-2 border-b border-gray-700">Categoría</th>
-            <th class="px-3 py-2 border-b border-gray-700">Centro</th>
+            {% if plan_config.show_center_selector %}
+            <th class="px-3 py-2 border-b border-gray-700">{{ plan_config.center_label }}</th>
+            {% endif %}
             <th class="px-3 py-2 border-b border-gray-700">Notas</th>
             <th class="px-3 py-2 border-b border-gray-700">Última Modificación</th>
             <th class="px-3 py-2 border-b border-gray-700">Acciones</th>
@@ -108,7 +112,9 @@
               {% endif %}
             </td>
             <td class="px-3 py-2">{{ item.record.user.categoria or '-' }}</td>
+            {% if plan_config.show_center_selector %}
             <td class="px-3 py-2">{{ item.record.user.centro or '-' }}</td>
+            {% endif %}
             <td class="px-3 py-2">{{ item.record.notes or '' }}</td>
             <td class="px-3 py-2 whitespace-nowrap">{{ item.record.updated_at.strftime("%d-%m-%Y %H:%M:%S") if item.record.updated_at else '-' }}</td>
             <td class="px-3 py-2 whitespace-nowrap">
