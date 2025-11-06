@@ -109,10 +109,11 @@
             </div>
         </div>
 
-        <!-- Centro / Super admin -->
+        <!-- Centro / Super admin (solo en versión Pro con múltiples centros) -->
+        {% if plan_config.show_center_selector %}
         <div class="mb-4">
             <label for="centro" class="block text-sm font-medium text-gray-300 mb-1">
-                Centro
+                {{ plan_config.center_label }}
             </label>
             <select id="centro" name="centro"
                     class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
@@ -138,6 +139,20 @@
                 Para Super admin selecciona "-- Sin asignar --" y marca "Es Administrador"
             </label>
         </div>
+        {% else %}
+        <!-- Versión Lite: Centro fijo, solo mostrar información -->
+        <div class="mb-4">
+            <label for="centro_display" class="block text-sm font-medium text-gray-300 mb-1">
+                {{ plan_config.center_label }}
+            </label>
+            <input type="text"
+                   id="centro_display"
+                   value="{{ centros[0] if centros else 'Empresa Principal' }}"
+                   disabled
+                   class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-400 cursor-not-allowed">
+            <input type="hidden" name="centro" value="{{ centros[0] if centros else '' }}">
+        </div>
+        {% endif %}
 
         <!-- Categoria -->
         <div class="mb-4">
