@@ -146,11 +146,14 @@ def shutdown_session(exception=None):
 @app.context_processor
 def inject_user():
     from flask import session
-    from models.models import User, SystemConfig
+    from models.models import User, SystemConfig, Client
     from datetime import datetime
+    from utils.multitenant import get_current_client, get_client_config
 
     user = None
     greeting = ""
+    current_client = None
+    client_config_dict = {}
 
     user_id = session.get("user_id")
     if user_id:
@@ -168,6 +171,10 @@ def inject_user():
             else:
                 greeting = f"Buenas noches, {first_name}"
 
+            # Obtener cliente actual (multi-tenant)
+            current_client = get_current_client()
+            client_config_dict = get_client_config()
+
     # Obtener el tema actual del usuario (si está autenticado) o el tema por defecto
     if user:
         current_theme = user.theme_preference
@@ -175,22 +182,38 @@ def inject_user():
         current_theme = 'dark-turquoise'  # Tema por defecto para usuarios no autenticados
 
     # Inyectar configuración del plan en todos los templates
-    plan_config_dict = {
-        'plan': plan_config.get_plan(),
-        'is_lite': plan_config.is_lite(),
-        'is_pro': plan_config.is_pro(),
-        'show_center_selector': plan_config.SHOW_CENTER_SELECTOR,
-        'center_label': plan_config.CENTER_LABEL,
-        'center_label_plural': plan_config.CENTER_LABEL_PLURAL,
-        'max_employees': plan_config.MAX_EMPLOYEES,
-        'features': plan_config.get_config()['features']
-    }
+    # Si hay cliente, usar su configuración, sino usar la global
+    if client_config_dict:
+        plan_config_dict = {
+            'plan': client_config_dict['plan'],
+            'is_lite': client_config_dict['is_lite'],
+            'is_pro': client_config_dict['is_pro'],
+            'show_center_selector': client_config_dict['show_center_selector'],
+            'center_label': client_config_dict['center_label'],
+            'center_label_plural': client_config_dict['center_label_plural'],
+            'max_employees': client_config_dict['max_employees'],
+            'features': client_config_dict['features']
+        }
+    else:
+        # Fallback a configuración global
+        plan_config_dict = {
+            'plan': plan_config.get_plan(),
+            'is_lite': plan_config.is_lite(),
+            'is_pro': plan_config.is_pro(),
+            'show_center_selector': plan_config.SHOW_CENTER_SELECTOR,
+            'center_label': plan_config.CENTER_LABEL,
+            'center_label_plural': plan_config.CENTER_LABEL_PLURAL,
+            'max_employees': plan_config.MAX_EMPLOYEES,
+            'features': plan_config.get_config()['features']
+        }
 
     return dict(
         current_user=user,
         greeting=greeting,
         current_theme=current_theme,
-        plan_config=plan_config_dict
+        plan_config=plan_config_dict,
+        current_client=current_client,
+        client_config=client_config_dict
     )
 
 # Registrar blueprints
