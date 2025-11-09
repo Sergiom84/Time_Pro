@@ -4,6 +4,25 @@ import sys
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Fix para forzar conexiones IPv4 con Supabase PostgreSQL
+# IMPORTANTE: Debe estar ANTES de cualquier import de Flask/SQLAlchemy/psycopg2
+# Soluciona problemas de timeout con IPv6 en Windows/WSL
+import socket
+_original_getaddrinfo = socket.getaddrinfo
+def _force_ipv4_getaddrinfo(*args, **kwargs):
+    """
+    Forzar conexiones PostgreSQL a usar IPv4 en lugar de IPv6.
+    Solo se aplica a hosts de Supabase pooler, no afecta otras conexiones.
+    """
+    host = args[0] if args else kwargs.get('host', '')
+
+    # Solo aplicar fix a hosts de PostgreSQL/pooler de Supabase
+    if 'pooler.supabase.com' in str(host) or 'supabase.co' in str(host) and 'db.' in str(host):
+        kwargs['family'] = socket.AF_INET
+
+    return _original_getaddrinfo(*args, **kwargs)
+socket.getaddrinfo = _force_ipv4_getaddrinfo
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from flask_mail import Mail
@@ -40,25 +59,17 @@ app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
 # Configuración de la base de datos
-# Usando Supabase como base de datos principal
-# La contraseña contiene un @ que necesita ser URL-encoded
-from urllib.parse import quote_plus
+# TODAS las credenciales deben estar en el archivo .env
+# NO se permiten credenciales hardcodeadas en el código
 
-supabase_password = "OPt0u_oag6Pir5MR0@"
-supabase_password_encoded = quote_plus(supabase_password)
+# Leer DATABASE_URL desde .env (obligatorio)
+uri = os.getenv("DATABASE_URL")
+if not uri:
+    raise ValueError(
+        "DATABASE_URL no está configurada. "
+        "Por favor, configura DATABASE_URL en el archivo .env"
+    )
 
-supabase_dsn = (
-    f"postgresql://postgres.gqesfclbingbihakiojm:"
-    f"{supabase_password_encoded}@"
-    f"aws-1-eu-west-1.pooler.supabase.com:6543/"
-    f"postgres"
-)
-
-# Configuración de Supabase (para futuro uso si necesitas API)
-SUPABASE_URL = "https://gqesfclbingbihakiojm.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxZXNmY2xiaW5nYmloYWtpb2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4Mjc2NzEsImV4cCI6MjA3NzQwMzY3MX0.FmhKu9LVids3b0cs7Q0GssEvjJcEOCkVifalx1bzxgY"
-
-uri = os.getenv("DATABASE_URL") or supabase_dsn
 # Normalizar si viniera como postgres://
 uri = uri.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
@@ -79,27 +90,39 @@ print("Usando BD:", _mask_dsn(app.config['SQLALCHEMY_DATABASE_URI']), file=sys.s
 is_production = os.getenv('DYNO') or os.getenv('RENDER')
 if is_production:
     # Production environment - standard pooling for sync workers
+    # Configurado para usar Connection Pooler (puerto 6543)
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
         "pool_size": 10,
         "max_overflow": 20,
-        "pool_timeout": 30
-    }
-else:
-    # Development environment - use minimal pooling (Supabase free tier)
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-        "pool_size": 1,           # Solo 1 conexión (mínimo absoluto)
-        "max_overflow": 1,        # 1 extra si es necesario
         "pool_timeout": 30,
         "connect_args": {
             "connect_timeout": 10,
+            "sslmode": "require",     # SSL requerido para Supabase
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 5,
+        }
+    }
+else:
+    # Development environment - use minimal pooling (Supabase free tier)
+    # Configurado para usar Connection Pooler (puerto 6543)
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "pool_pre_ping": True,       # Verificar conexión antes de usar
+        "pool_recycle": 300,          # Reciclar conexiones cada 5 min
+        "pool_size": 1,               # Solo 1 conexión (mínimo absoluto)
+        "max_overflow": 2,            # 2 extras si es necesario
+        "pool_timeout": 30,           # Timeout para obtener conexión del pool
+        "connect_args": {
+            "connect_timeout": 15,    # Timeout más largo para IPv6
+            "sslmode": "require",     # SSL requerido para Supabase
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "options": "-c statement_timeout=30000",  # 30s statement timeout
         }
     }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
