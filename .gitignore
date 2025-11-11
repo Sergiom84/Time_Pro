@@ -96,3 +96,4 @@ instance/
 *.bak
 *~
 temp.txt
+.mcp.json
