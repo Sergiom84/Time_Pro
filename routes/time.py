@@ -77,15 +77,22 @@ def check_in():
             )
         else:
             now = datetime.now()
+            client_id = session.get("client_id", 1)  # Multi-tenant: obtener client_id de la sesión
 
             # --- crear TimeRecord ---
-            new_rec = TimeRecord(user_id=user_id, check_in=now, date=now.date())
+            new_rec = TimeRecord(
+                client_id=client_id,
+                user_id=user_id,
+                check_in=now,
+                date=now.date()
+            )
             db.session.add(new_rec)
 
             # --- si no existe EmployeeStatus hoy, crearlo como Trabajado ---
             if not today_status:
                 user = User.query.get(user_id)
                 db.session.add(EmployeeStatus(
+                    client_id = client_id,
                     user_id  = user_id,
                     date     = now.date(),
                     status   = "Trabajado",
@@ -403,7 +410,9 @@ def start_pause():
             })
 
         # Crear nueva pausa
+        client_id = session.get("client_id", 1)  # Multi-tenant
         new_pause = WorkPause(
+            client_id=client_id,
             user_id=user_id,
             time_record_id=today_record.id,
             pause_type=data.get("pause_type", "Descanso"),
@@ -543,7 +552,9 @@ def create_leave_request():
             approval_date = None
 
         # Crear nueva solicitud
+        client_id = session.get("client_id", 1)  # Multi-tenant
         new_request = LeaveRequest(
+            client_id=client_id,
             user_id=user_id,
             request_type=request_type,
             start_date=start_date,
@@ -741,6 +752,7 @@ def process_approved_requests():
             else:
                 # Crear nuevo status
                 new_status = EmployeeStatus(
+                    client_id=req.client_id,  # Multi-tenant: obtener de la solicitud
                     user_id=req.user_id,
                     date=current_date,
                     status=status,

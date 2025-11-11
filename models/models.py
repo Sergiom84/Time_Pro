@@ -35,12 +35,18 @@ class Client(db.Model):
 
 
 class User(db.Model):
+    __tablename__ = "user"
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "username", name="uix_client_username"),
+        db.UniqueConstraint("client_id", "email", name="uix_client_email"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
-    username = db.Column(db.String(80), unique=True, nullable=False)
+    username = db.Column(db.String(80), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     weekly_hours = db.Column(db.Integer, nullable=False, default=0)
@@ -103,6 +109,7 @@ class User(db.Model):
 
 class TimeRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     check_in = db.Column(db.DateTime, nullable=True)
     check_out = db.Column(db.DateTime, nullable=True)
@@ -122,10 +129,11 @@ class TimeRecord(db.Model):
 class EmployeeStatus(db.Model):
     __tablename__ = "employee_status"
     __table_args__ = (
-        db.UniqueConstraint("user_id", "date", name="uix_employee_date"),
+        db.UniqueConstraint("client_id", "user_id", "date", name="uix_employee_date"),
     )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
     user_id = db.Column(
         db.Integer,
         db.ForeignKey("user.id", ondelete="CASCADE"),
@@ -160,6 +168,7 @@ class WorkPause(db.Model):
     __tablename__ = "work_pause"
 
     id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     time_record_id = db.Column(db.Integer, db.ForeignKey("time_record.id", ondelete="CASCADE"), nullable=False)
     pause_type = db.Column(
@@ -194,6 +203,7 @@ class LeaveRequest(db.Model):
     __tablename__ = "leave_request"
 
     id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     request_type = db.Column(
         db.Enum(

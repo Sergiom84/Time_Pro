@@ -140,6 +140,11 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('
 db.init_app(app)
 mail = Mail(app)
 
+# Configurar filtrado automático multi-tenant
+from utils.multitenant import setup_multitenant_filters
+with app.app_context():
+    setup_multitenant_filters(app, db)
+
 # Inicializar SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 

@@ -34,7 +34,7 @@ PLAN_CONFIG = {
             'calendar_view': True,
             'leave_requests': True,
             'work_pauses': True,
-            'email_notifications': False,  # Deshabilitado en Lite
+            'email_notifications': True,  # Habilitado en Lite
         },
 
         # Mensajes personalizados

@@ -182,3 +182,57 @@ def inject_client_context():
         'current_client': client,
         'client_config': config,
     }
+
+
+def setup_multitenant_filters(app, db):
+    """
+    Configura filtros automáticos para aislar datos por client_id.
+
+    Este sistema intercepta queries de SQLAlchemy y automáticamente
+    agrega filtros WHERE client_id = X para modelos que tienen client_id.
+    """
+    from sqlalchemy import event, inspect
+    from sqlalchemy.orm import Query
+
+    # Modelos que tienen client_id y deben ser filtrados automáticamente
+    TENANT_MODELS = ['User', 'TimeRecord', 'EmployeeStatus', 'WorkPause', 'LeaveRequest', 'SystemConfig']
+
+    @event.listens_for(Query, "before_compile", retval=True)
+    def before_compile(query):
+        """
+        Intercepta queries antes de compilarlas para agregar filtro de client_id.
+        Solo aplica si hay un client_id en la sesión.
+        """
+        # Solo filtrar si hay un cliente en la sesión
+        try:
+            client_id = get_current_client_id()
+            if not client_id:
+                return query
+        except RuntimeError:
+            # No hay contexto de petición (ej: scripts, shell)
+            # No aplicar filtro
+            return query
+
+        # Verificar si ya tiene un filtro de client_id
+        # (para evitar duplicados)
+        if hasattr(query, '_tenant_filtered'):
+            return query
+
+        # Iterar sobre las entidades en el query
+        for ent in query.column_descriptions:
+            entity = ent['entity']
+            if entity is None:
+                continue
+
+            # Verificar si el modelo tiene client_id
+            model_name = entity.__name__ if hasattr(entity, '__name__') else None
+            if model_name in TENANT_MODELS:
+                # Verificar que la columna client_id existe
+                if hasattr(entity, 'client_id'):
+                    # Agregar filtro automático
+                    query = query.filter(entity.client_id == client_id)
+                    query._tenant_filtered = True
+
+        return query
+
+    app.logger.info("Multi-tenant automatic filtering configured")
