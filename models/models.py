@@ -3,8 +3,40 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Index
 
+
+class Client(db.Model):
+    """Modelo para gestionar clientes/empresas (multi-tenant)"""
+    __tablename__ = "client"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False)  # Ej: "Aluminios Lara"
+    slug = db.Column(db.String(100), unique=True, nullable=False)  # Ej: "aluminios-lara"
+    plan = db.Column(
+        db.Enum("lite", "pro", name="plan_enum"),
+        nullable=False,
+        default="pro"
+    )
+    logo_url = db.Column(db.String(500), nullable=True)  # URL del logo en Supabase
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Configuración de branding
+    primary_color = db.Column(db.String(7), default="#0ea5e9")  # Color principal (hex)
+    secondary_color = db.Column(db.String(7), default="#06b6d4")  # Color secundario
+
+    # Metadatos
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relaciones
+    users = db.relationship("User", backref="client", lazy=True, cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Client {self.name} ({self.plan})>"
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
@@ -205,27 +237,37 @@ class LeaveRequest(db.Model):
 
 class SystemConfig(db.Model):
     """Modelo para almacenar configuración del sistema"""
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "key", name="uix_client_key"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(50), unique=True, nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
+    key = db.Column(db.String(50), nullable=False)
     value = db.Column(db.String(200), nullable=False)
     description = db.Column(db.String(200))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
 
     @classmethod
-    def get_theme(cls):
-        """Obtiene el tema actual del sistema"""
-        config = cls.query.filter_by(key='theme').first()
+    def get_theme(cls, client_id):
+        """Obtiene el tema actual del sistema para un cliente"""
+        config = cls.query.filter_by(client_id=client_id, key='theme').first()
         if config:
             return config.value
         return 'dark-turquoise'  # Tema por defecto
 
     @classmethod
-    def set_theme(cls, theme_name, user_id=None):
-        """Establece el tema del sistema"""
-        config = cls.query.filter_by(key='theme').first()
+    def set_theme(cls, client_id, theme_name, user_id=None):
+        """Establece el tema del sistema para un cliente"""
+        config = cls.query.filter_by(client_id=client_id, key='theme').first()
         if not config:
-            config = cls(key='theme', value=theme_name, description='Tema visual del sistema')
+            config = cls(
+                client_id=client_id,
+                key='theme',
+                value=theme_name,
+                description='Tema visual del sistema'
+            )
             db.session.add(config)
         else:
             config.value = theme_name

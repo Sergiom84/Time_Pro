@@ -32,6 +32,7 @@ def login():
         if user and user.check_password(password):
             session["user_id"] = user.id
             session["is_admin"] = user.is_admin
+            session["client_id"] = user.client_id  # Multi-tenant: guardar client_id
             # Guardar el centro del admin si está asignado
             if user.is_admin and user.centro and user.centro != "-- Sin categoría --":
                 session["admin_centro"] = user.centro
@@ -54,6 +55,7 @@ def logout():
     session.pop("user_id", None)
     session.pop("is_admin", None)
     session.pop("admin_centro", None)
+    session.pop("client_id", None)  # Multi-tenant: limpiar client_id
     # Asegurar que no queden flashes anteriores (p.ej., "inicio de sesión exitoso")
     session.pop("_flashes", None)
     flash("Has cerrado sesión.", "info")
