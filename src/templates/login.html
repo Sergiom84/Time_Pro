@@ -46,6 +46,18 @@
 
         <!-- Formulario de login -->
         <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+            <!-- Client identifier -->
+            <div>
+                <label for="client_identifier" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                    Empresa / ID de cliente
+                </label>
+                <input type="text" id="client_identifier" name="client_identifier" required
+                       value="{{ client_identifier or '' }}"
+                       class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);"
+                       placeholder="Ej. aluminios-lara o 12">
+                <p class="text-xs mt-1" style="color: var(--text-secondary);">Usa el slug o ID interno asignado a tu empresa.</p>
+            </div>
             <!-- Username field -->
             <div>
                 <label for="username" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
