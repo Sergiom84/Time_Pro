@@ -791,7 +791,9 @@ def manage_employee_status(user_id):
                 existing.status = status
                 existing.notes  = notes
             else:
+                client_id = session.get("client_id", 1)  # Multi-tenant
                 db.session.add(EmployeeStatus(
+                    client_id = client_id,
                     user_id = user_id,
                     date    = day,
                     status  = status,
@@ -1062,6 +1064,7 @@ def approve_leave_request(request_id):
                 existing_status.notes = f"Solicitud aprobada: {leave_request.request_type}"
             else:
                 new_status = EmployeeStatus(
+                    client_id=leave_request.client_id,  # Multi-tenant: obtener de la solicitud
                     user_id=leave_request.user_id,
                     date=current_date,
                     status=status,

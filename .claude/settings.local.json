@@ -74,9 +74,22 @@
       "Bash(kill:*)",
       "Bash(pkill:*)",
       "Bash(pgrep:*)",
-      "Bash(APP_PLAN=lite python:*)"
+      "Bash(APP_PLAN=lite python:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(venv/bin/pip install:*)",
+      "Bash(python -m venv:*)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(env)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(venv/bin/python:*)",
+      "Bash(ping:*)",
+      "Bash(nslookup:*)",
+      "Bash(timeout 10 venv/Scripts/python.exe:*)",
+      "Bash(git merge:*)",
+      "Bash(timeout 15 venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true
 }

@@ -74,14 +74,20 @@ def register():
         if password != confirm_password:
             flash("Las contraseñas no coinciden.", "danger")
             return redirect(url_for("auth.register"))
-        if User.query.filter_by(username=username).first():
+
+        # Multi-tenant: Verificar username y email por cliente
+        # Por ahora usamos client_id = 1 (cliente por defecto)
+        if User.query.filter_by(client_id=1, username=username).first():
             flash("El nombre de usuario ya existe.", "danger")
             return redirect(url_for("auth.register"))
-        if User.query.filter_by(email=email).first():
+        if User.query.filter_by(client_id=1, email=email).first():
             flash("El email ya está registrado.", "danger")
             return redirect(url_for("auth.register"))
 
+        # Multi-tenant: Por ahora asignamos al cliente por defecto (Time Pro)
+        # En el futuro esto se obtendrá del subdominio o selección de cliente
         nuevo_usuario = User(
+            client_id=1,  # Cliente por defecto
             username=username,
             full_name=full_name,
             email=email,
