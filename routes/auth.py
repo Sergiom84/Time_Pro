@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import check_password_hash
-from models.models import User
+from models.models import User, Client
 from models.database import db
 
 auth_bp = Blueprint("auth", __name__)  # Usa la carpeta global de templates
@@ -10,6 +10,24 @@ def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
+        client_identifier = (request.form.get("client_identifier") or "").strip()
+
+        if not client_identifier:
+            flash("Debes indicar el identificador de tu empresa.", "danger")
+            return render_template("login.html", client_identifier=client_identifier)
+
+        client = None
+        if client_identifier.isdigit():
+            client = Client.query.filter_by(id=int(client_identifier)).first()
+        if client is None:
+            client = Client.query.filter_by(slug=client_identifier.lower()).first()
+        if client is None:
+            client = Client.query.filter(Client.name.ilike(client_identifier)).first()
+
+        if not client or not client.is_active:
+            flash("No encontramos una empresa activa con ese identificador.", "danger")
+            return render_template("login.html", client_identifier=client_identifier)
+
         try:
             # Debug: imprimir motor y URL efectiva (forzamos flush)
             from sqlalchemy import text
@@ -20,7 +38,7 @@ def login():
         except Exception as e:
             print("[LOGIN] connection-test error:", e, flush=True)
         try:
-            user = User.query.filter_by(username=username).first()
+            user = User.query.filter_by(client_id=client.id, username=username).first()
         except Exception as e:
             # Registrar detalles del engine si la query falla
             try:
@@ -70,24 +88,38 @@ def register():
         email            = request.form.get("email")
         password         = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
+        client_identifier = (request.form.get("client_identifier") or "").strip()
+
+        if not client_identifier:
+            flash("Debes indicar el identificador de la empresa para registrarte.", "danger")
+            return redirect(url_for("auth.register"))
+
+        client = None
+        if client_identifier.isdigit():
+            client = Client.query.filter_by(id=int(client_identifier)).first()
+        if client is None:
+            client = Client.query.filter_by(slug=client_identifier.lower()).first()
+        if client is None:
+            client = Client.query.filter(Client.name.ilike(client_identifier)).first()
+
+        if not client or not client.is_active:
+            flash("No encontramos una empresa activa con ese identificador.", "danger")
+            return redirect(url_for("auth.register"))
 
         if password != confirm_password:
             flash("Las contraseñas no coinciden.", "danger")
             return redirect(url_for("auth.register"))
 
         # Multi-tenant: Verificar username y email por cliente
-        # Por ahora usamos client_id = 1 (cliente por defecto)
-        if User.query.filter_by(client_id=1, username=username).first():
+        if User.query.filter_by(client_id=client.id, username=username).first():
             flash("El nombre de usuario ya existe.", "danger")
             return redirect(url_for("auth.register"))
-        if User.query.filter_by(client_id=1, email=email).first():
+        if User.query.filter_by(client_id=client.id, email=email).first():
             flash("El email ya está registrado.", "danger")
             return redirect(url_for("auth.register"))
 
-        # Multi-tenant: Por ahora asignamos al cliente por defecto (Time Pro)
-        # En el futuro esto se obtendrá del subdominio o selección de cliente
         nuevo_usuario = User(
-            client_id=1,  # Cliente por defecto
+            client_id=client.id,
             username=username,
             full_name=full_name,
             email=email,

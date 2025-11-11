@@ -136,7 +136,7 @@ def get_client_config():
             'max_centers': 1,
             'show_center_selector': False,
             'center_label': 'Empresa',
-            'center_label_plural': 'Empresa',
+            'center_label_plural': 'Empresas',
             'features': {
                 'basic_reports': True,
                 'advanced_reports': False,
@@ -146,7 +146,11 @@ def get_client_config():
                 'leave_requests': True,
                 'work_pauses': True,
                 'email_notifications': False,
-            }
+            },
+            'messages': {
+                'employee_limit_reached': 'Has alcanzado el limite de 5 empleados de la version Lite.',
+                'upgrade_prompt': 'Actualiza a la version Pro para anadir empleados ilimitados.'
+            },
         })
     else:  # pro
         config.update({
@@ -164,7 +168,11 @@ def get_client_config():
                 'leave_requests': True,
                 'work_pauses': True,
                 'email_notifications': True,
-            }
+            },
+            'messages': {
+                'employee_limit_reached': None,
+                'upgrade_prompt': None
+            },
         })
 
     return config

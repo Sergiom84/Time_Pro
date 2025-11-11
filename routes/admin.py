@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause
 from models.database import db
 import plan_config  # Sistema de configuración multi-plan
+from utils.multitenant import get_client_config
 
 admin_bp = Blueprint(
     "admin", __name__,
@@ -230,6 +231,14 @@ def add_user():
     centro_admin = get_admin_centro()
     centros = get_centros_disponibles()
     categorias = CATEGORIAS_DISPONIBLES.copy()
+    client_id = session.get("client_id")
+
+    if not client_id:
+        flash("No se pudo determinar el cliente activo.", "danger")
+        return redirect(url_for("admin.manage_users"))
+    client_config = get_client_config() or {}
+    max_employees = client_config.get('max_employees', plan_config.MAX_EMPLOYEES)
+    plan_messages = client_config.get('messages', plan_config.get_config().get('messages', {}))
 
     if request.method == "POST":
         username      = request.form.get("username")
@@ -247,18 +256,19 @@ def add_user():
             centro = centro_admin
 
         # VALIDACIÓN DE LÍMITE DE EMPLEADOS (VERSION LITE)
-        if plan_config.MAX_EMPLOYEES is not None:
+        if max_employees is not None:
             # Contar empleados actuales (excluyendo admins)
-            query = User.query.filter_by(is_admin=False)
+            query = User.query.filter_by(client_id=client_id, is_admin=False)
             if centro:
                 query = query.filter_by(centro=centro)
             current_employee_count = query.count()
 
             # Verificar si se alcanzó el límite
-            if current_employee_count >= plan_config.MAX_EMPLOYEES:
-                flash(plan_config.get_config()['messages']['employee_limit_reached'], "warning")
-                if plan_config.get_config()['messages']['upgrade_prompt']:
-                    flash(plan_config.get_config()['messages']['upgrade_prompt'], "info")
+            if current_employee_count >= max_employees:
+                if plan_messages.get('employee_limit_reached'):
+                    flash(plan_messages['employee_limit_reached'], "warning")
+                if plan_messages.get('upgrade_prompt'):
+                    flash(plan_messages['upgrade_prompt'], "info")
                 return render_template("user_form.html", user=None, action="add",
                                        form_data=request.form, centro_admin=centro_admin,
                                        centros=centros, categorias=categorias)
@@ -293,13 +303,17 @@ def add_user():
                                    form_data=request.form, centro_admin=centro_admin,
                                    centros=centros, categorias=categorias)
 
-        if User.query.filter((User.username == username) | (User.email == email)).first():
+        if User.query.filter(
+            (User.client_id == client_id) &
+            ((User.username == username) | (User.email == email))
+        ).first():
             flash("El nombre de usuario o el correo electrónico ya existen.", "danger")
             return render_template("user_form.html", user=None, action="add",
                                    form_data=request.form, centro_admin=centro_admin,
                                    centros=centros, categorias=categorias)
 
         new_user = User(
+            client_id       = client_id,
             username         = username,
             full_name        = full_name,
             email            = email,
