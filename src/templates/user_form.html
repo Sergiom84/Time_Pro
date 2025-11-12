@@ -140,18 +140,8 @@
             </label>
         </div>
         {% else %}
-        <!-- Versión Lite: Centro fijo, solo mostrar información -->
-        <div class="mb-4">
-            <label for="centro_display" class="block text-sm font-medium text-gray-300 mb-1">
-                {{ plan_config.center_label }}
-            </label>
-            <input type="text"
-                   id="centro_display"
-                   value="{{ centros[0] if centros else 'Empresa Principal' }}"
-                   disabled
-                   class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-400 cursor-not-allowed">
-            <input type="hidden" name="centro" value="{{ centros[0] if centros else '' }}">
-        </div>
+        <!-- Versión Lite: Centro único, ocultar campo completamente -->
+        <input type="hidden" name="centro" value="{{ centros[0] if centros else '-- Sin categoría --' }}">
         {% endif %}
 
         <!-- Categoria -->
