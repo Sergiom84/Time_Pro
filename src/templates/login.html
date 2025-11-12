@@ -13,13 +13,9 @@
 </head>
 <body data-theme="dark-turquoise" class="font-sans flex justify-center items-center min-h-screen m-0" style="background-color: var(--bg-primary); color: var(--text-primary);">
     <div class="w-full max-w-md p-10">
-        <!-- Header con logo -->
+        <!-- Header -->
         <div class="text-center mb-10">
-            <div class="mx-auto mb-6 w-24 h-24 rounded-full border-4 flex items-center justify-center"
-                 style="border-color: var(--accent-primary); background-color: var(--bg-card);">
-                <span class="text-gray-400 text-sm italic">Logo</span>
-            </div>
-            <h1 class="text-3xl font-bold" style="color: var(--accent-primary);">
+            <h1 class="text-4xl font-bold mb-2" style="color: var(--accent-primary);">
                 Time Tracker
             </h1>
             <p class="text-sm mt-2" style="color: var(--text-secondary);">
@@ -54,9 +50,7 @@
                 <input type="text" id="client_identifier" name="client_identifier" required
                        value="{{ client_identifier or '' }}"
                        class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);"
-                       placeholder="Ej. aluminios-lara o 12">
-                <p class="text-xs mt-1" style="color: var(--text-secondary);">Usa el slug o ID interno asignado a tu empresa.</p>
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
             </div>
             <!-- Username field -->
             <div>
@@ -65,8 +59,7 @@
                 </label>
                 <input type="text" id="username" name="username" required
                        class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);"
-                       placeholder="Tu usuario">
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
             </div>
 
             <!-- Password field -->
@@ -76,8 +69,7 @@
                 </label>
                 <input type="password" id="password" name="password" required
                        class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);"
-                       placeholder="Tu contraseña">
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
             </div>
 
             <!-- Submit button -->
