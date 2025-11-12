@@ -90,7 +90,7 @@ def client_has_feature(feature_name):
             'calendar_view': True,
             'leave_requests': True,
             'work_pauses': True,
-            'email_notifications': False,
+            'email_notifications': True,
         },
         'pro': {
             'basic_reports': True,
@@ -145,7 +145,7 @@ def get_client_config():
                 'calendar_view': True,
                 'leave_requests': True,
                 'work_pauses': True,
-                'email_notifications': False,
+                'email_notifications': True,
             },
             'messages': {
                 'employee_limit_reached': 'Has alcanzado el limite de 5 empleados de la version Lite.',
