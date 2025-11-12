@@ -226,6 +226,11 @@ def setup_multitenant_filters(app, db):
         if hasattr(query, '_tenant_filtered'):
             return query
 
+        # Verificar si la query ya tiene LIMIT o OFFSET
+        # Si es así, NO aplicar filtro para evitar error de SQLAlchemy
+        if query._limit is not None or query._offset is not None:
+            return query
+
         # Iterar sobre las entidades en el query
         for ent in query.column_descriptions:
             entity = ent['entity']
