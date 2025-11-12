@@ -16,8 +16,14 @@ from dotenv import load_dotenv
 # Cargar variables de entorno
 load_dotenv()
 
-SUPABASE_URL = os.getenv('SUPABASE_URL') or "https://gqesfclbingbihakiojm.supabase.co"
-SUPABASE_KEY = os.getenv('SUPABASE_KEY') or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxZXNmY2xiaW5nYmloYWtpb2ptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTgyNzY3MSwiZXhwIjoyMDc3NDAzNjcxfQ.GjRCAqnuuTvUObVf8i9cl5bYCxBKS2EWUncIQIB5kyM"
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ Error: Variables de entorno no configuradas")
+    print("   SUPABASE_URL y SUPABASE_KEY son requeridas")
+    print("   Configúralas en el archivo .env")
+    sys.exit(1)
 
 def create_admin_interactive():
     """Crear administrador de forma interactiva"""
