@@ -50,7 +50,7 @@ app = Flask(
 )
 
 # Configuración general
-app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or os.urandom(24).hex()
 
 # Configuración de límite de tamaño de petición HTTP
 # Permitir archivos de hasta 16MB en las peticiones HTTP
