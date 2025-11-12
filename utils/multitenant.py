@@ -228,8 +228,13 @@ def setup_multitenant_filters(app, db):
 
         # Verificar si la query ya tiene LIMIT o OFFSET
         # Si es así, NO aplicar filtro para evitar error de SQLAlchemy
-        if query._limit is not None or query._offset is not None:
-            return query
+        try:
+            if hasattr(query, '_limit') and (query._limit is not None or query._offset is not None):
+                return query
+        except (AttributeError, TypeError):
+            # En algunas versiones de SQLAlchemy estos atributos no existen
+            # Continuar sin esta verificación
+            pass
 
         # Iterar sobre las entidades en el query
         for ent in query.column_descriptions:
