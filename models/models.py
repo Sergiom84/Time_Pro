@@ -153,6 +153,7 @@ class TimeRecord(db.Model):
     check_out = db.Column(db.DateTime, nullable=True)
     date = db.Column(db.Date, nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    admin_notes = db.Column(db.Text, nullable=True)
     modified_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
@@ -187,6 +188,7 @@ class EmployeeStatus(db.Model):
         default=""
     )
     notes = db.Column(db.Text, nullable=True)
+    admin_notes = db.Column(db.Text, nullable=True)
     request_type = db.Column(db.String(50), nullable=True)  # Tipo de solicitud original (Vacaciones, Baja médica, etc.)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
@@ -255,6 +257,7 @@ class LeaveRequest(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     reason = db.Column(db.Text, nullable=True)
+    admin_notes = db.Column(db.Text, nullable=True)
     status = db.Column(
         db.Enum(
             "Pendiente", "Aprobado", "Rechazado", "Cancelado", "Enviado", "Recibido",

@@ -1042,6 +1042,7 @@ def edit_record(record_id):
             record.check_in  = datetime.strptime(f"{ds} {ci}", "%Y-%m-%d %H:%M:%S") if ci else None
             record.check_out = datetime.strptime(f"{ds} {co}", "%Y-%m-%d %H:%M:%S") if co else None
             record.notes     = request.form.get("notes")
+            record.admin_notes = request.form.get("admin_notes")
             record.modified_by = session.get("user_id")
 
             if record.check_in and record.check_out and record.check_out < record.check_in:
@@ -1397,6 +1398,9 @@ def leave_requests():
     filter_categoria_id, filter_categoria_none = parse_category_filter(
         filter_categoria if filter_categoria != "all" else ""
     )
+    filter_categoria_id, filter_categoria_none = parse_category_filter(
+        filter_categoria if filter_categoria != "all" else ""
+    )
     filter_usuario = request.args.get("usuario", "")
 
     # Navegación por fechas
@@ -1540,6 +1544,11 @@ def approve_leave_request(request_id):
         leave_request.approved_by = admin_id
         leave_request.approval_date = datetime.now()
 
+        # Guardar notas del admin si las proporciona
+        admin_notes = request.form.get("admin_notes")
+        if admin_notes:
+            leave_request.admin_notes = admin_notes
+
         # Crear EmployeeStatus para los días solicitados
         status_map = {
             "Vacaciones": "Vacaciones",
@@ -1563,6 +1572,8 @@ def approve_leave_request(request_id):
                 existing_status.status = status
                 existing_status.request_type = leave_request.request_type
                 existing_status.notes = f"Solicitud aprobada: {leave_request.request_type}"
+                if admin_notes:
+                    existing_status.admin_notes = admin_notes
             else:
                 new_status = EmployeeStatus(
                     client_id=leave_request.client_id,  # Multi-tenant: obtener de la solicitud
@@ -1570,7 +1581,8 @@ def approve_leave_request(request_id):
                     date=current_date,
                     status=status,
                     request_type=leave_request.request_type,
-                    notes=f"Solicitud aprobada: {leave_request.request_type}"
+                    notes=f"Solicitud aprobada: {leave_request.request_type}",
+                    admin_notes=admin_notes if admin_notes else None
                 )
                 db.session.add(new_status)
 
@@ -1627,9 +1639,14 @@ def reject_leave_request(request_id):
         leave_request.approved_by = admin_id
         leave_request.approval_date = datetime.now()
 
-        # Guardar motivo de rechazo en notas si existe
+        # Guardar motivo de rechazo en admin_notes si existe
         if reason:
-            leave_request.notes = f"Rechazado: {reason}"
+            leave_request.admin_notes = f"Rechazado: {reason}"
+
+        # También guardar admin_notes del formulario si vienen
+        admin_notes = request.form.get("admin_notes")
+        if admin_notes:
+            leave_request.admin_notes = admin_notes
 
         db.session.commit()
 
