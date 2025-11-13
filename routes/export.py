@@ -16,8 +16,8 @@ export_bp = Blueprint("export", __name__, template_folder="../templates")
 STATUS_GROUPS = {
     "Trabajado": ["Trabajado"],
     "Baja": ["Baja"],
-    "Ausente": ["Ausente", "Ausencia justificada", "Ausencia injustificada"],
-    "Vacaciones": ["Vacaciones", "Permiso especial"]
+    "Ausente": ["Ausente"],
+    "Vacaciones": ["Vacaciones"]
 }
 CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
@@ -94,7 +94,7 @@ def handle_daily_excel_export(req):
         fecha = date.today()
 
     # Obtener filtros de estado
-    status_filters = req.form.getlist('status')
+    status_filters = list(dict.fromkeys(req.form.getlist('status')))
     if not status_filters:
         status_filters = ['Trabajado']
 
@@ -469,7 +469,7 @@ def export_excel():
             return redirect(url_for("export.export_excel"))
 
         # Obtener filtros de estado
-        status_filters = request.form.getlist('status')
+        status_filters = list(dict.fromkeys(request.form.getlist('status')))
         if not status_filters:
             status_filters = ['Trabajado']  # Default solo trabajado
 

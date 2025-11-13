@@ -134,7 +134,7 @@
         </button>
 
         <!-- Panel desplegable de temas (oculto por defecto) -->
-        <div id="theme-dropdown" class="hidden mt-2 p-3 rounded bg-secondary border border-primary">
+        <div id="theme-dropdown" class="hidden mt-2 p-3 rounded bg-secondary border border-primary relative z-50 shadow-xl">
           <div class="theme-selector flex flex-col gap-3">
             <!-- Tema Oscuro Turquesa -->
             <div class="text-center cursor-pointer hover:opacity-80 transition-opacity" onclick="selectAndCloseTheme('dark-turquoise')">
@@ -325,6 +325,14 @@
           themeDropdown.classList.remove('hidden');
           themeArrow.style.transform = 'rotate(180deg)';
         } else {
+          themeDropdown.classList.add('hidden');
+          themeArrow.style.transform = 'rotate(0deg)';
+        }
+      });
+
+      // Cerrar cuando se hace clic fuera
+      document.addEventListener('click', function (event) {
+        if (!themeDropdown.contains(event.target) && !themeToggleBtn.contains(event.target)) {
           themeDropdown.classList.add('hidden');
           themeArrow.style.transform = 'rotate(0deg)';
         }
