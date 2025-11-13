@@ -28,9 +28,9 @@
             <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
           {% else %}
             <option value="">Todos</option>
-            <option value="Centro 1">Centro 1</option>
-            <option value="Centro 2">Centro 2</option>
-            <option value="Centro 3">Centro 3</option>
+            {% for centro in centros %}
+            <option value="{{ centro }}">{{ centro }}</option>
+            {% endfor %}
           {% endif %}
         </select>
       </div>
@@ -152,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(events => {
           const filtered = events.filter(ev => {
             const status = ev.title.split(' - ')[0]; // «Trabajado - Pepe»
-            return activeStatuses.includes(status);
+            const filterStatus = ev.extendedProps?.filterStatus || status;
+            return activeStatuses.includes(filterStatus);
           });
           success(filtered);
         })

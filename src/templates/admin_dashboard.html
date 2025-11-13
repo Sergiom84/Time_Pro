@@ -147,11 +147,11 @@
         {% endif %}
       </td>
       <td class="px-3 py-2 whitespace-nowrap">
-        {{ item.record.user.categoria or '-' }}
+        {{ item.record.user.category.name if item.record.user.category else '-' }}
       </td>
       {% if plan_config.show_center_selector %}
       <td class="px-3 py-2 whitespace-nowrap">
-        {{ item.record.user.centro or '-' }}
+        {{ item.record.user.center.name if item.record.user.center else '-' }}
       </td>
       {% endif %}
       <td class="px-3 py-2">{{ item.record.notes or "" }}</td>

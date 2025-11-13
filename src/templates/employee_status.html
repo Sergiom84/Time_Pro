@@ -49,8 +49,10 @@
 
     <div class="md:col-span-2">
       <label class="block text-sm text-gray-300 mb-1">Notas</label>
-      <input type="text" name="notes"
-             class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
+      <input type="text" name="notes" value=""
+             autocomplete="off"
+             class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100"
+             placeholder="Ingrese notas (opcional)">
     </div>
 
     <div class="md:col-span-5 flex justify-end gap-2">
@@ -113,6 +115,13 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  // ---------- LIMPIAR CAMPOS AL CARGAR ----------
+  // Asegurar que el campo de notas esté vacío al cargar la página
+  const notesInput = document.querySelector('input[name="notes"]');
+  if (notesInput) {
+    notesInput.value = '';
+  }
+
   // ---------- VARIABLES GLOBALES ----------
   let dateFilters = {};
   let statusFilter = '';
@@ -140,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Filtrar por estado si se seleccionó uno específico
           if (statusFilter && statusFilter !== '') {
             const filtered = events.filter(ev => {
-              const evStatus = ev.title.split(' - ')[0];
+              const evStatus = ev.extendedProps?.filterStatus || ev.title.split(' - ')[0];
               return evStatus === statusFilter;
             });
             success(filtered);
@@ -156,9 +165,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const modal = document.getElementById('editModal');
       modal.classList.remove('hidden');
       document.getElementById('edit_status_id').value = info.event.id;
-      document.getElementById('edit_date').value = info.event.startStr;
+      // Mostrar la fecha en formato día/mes/año
+      try {
+        const d = info.event.start instanceof Date ? info.event.start : new Date(info.event.startStr);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        document.getElementById('edit_date').value = `${dd}/${mm}/${yyyy}`;
+      } catch (e) {
+        // Fallback por si algo falla
+        document.getElementById('edit_date').value = info.event.startStr;
+      }
       document.getElementById('edit_status').value = info.event.title.split(' - ')[0];
-      document.getElementById('edit_notes').value = info.event.extendedProps.notes || '';
+      // Las notas deben mostrarse vacías salvo que el empleado escribiera algo
+      const rawNotes = info.event.extendedProps.notes;
+      const defaultAutoText = 'Registro automático de fichaje';
+      document.getElementById('edit_notes').value = (rawNotes && rawNotes.trim() && rawNotes !== defaultAutoText) ? rawNotes : '';
 
       // Delete (enviar POST)
       document.getElementById('deleteBtn').onclick = function() {
@@ -217,10 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
     dateFilters = {};
     statusFilter = '';
 
-    // Limpiar campos del formulario (excepto notas)
+    // Limpiar campos del formulario
     form.start_date.value = '';
     form.end_date.value = '';
     form.status.value = '';
+    form.notes.value = '';  // Limpiar también el campo de notas
 
     // Recargar eventos
     cal.refetchEvents();

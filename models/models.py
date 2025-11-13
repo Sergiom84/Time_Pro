@@ -29,9 +29,45 @@ class Client(db.Model):
 
     # Relaciones
     users = db.relationship("User", backref="client", lazy=True, cascade="all, delete-orphan")
+    categories = db.relationship("Category", backref="client", lazy=True, cascade="all, delete-orphan")
+    centers = db.relationship("Center", backref="client", lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Client {self.name} ({self.plan})>"
+
+
+class Category(db.Model):
+    """Modelo para categorías de empleados (dinámicas por cliente)"""
+    __tablename__ = "category"
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "name", name="uix_client_category_name"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)  # Ej: "Camarero", "Cocinero"
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Category {self.name} (client_id={self.client_id})>"
+
+
+class Center(db.Model):
+    """Modelo para centros/sucursales (dinámicos por cliente)"""
+    __tablename__ = "center"
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "name", name="uix_client_center_name"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)  # Ej: "Centro 1", "Aluminios Lara"
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Center {self.name} (client_id={self.client_id})>"
 
 
 class User(db.Model):
@@ -47,23 +83,22 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
+    role = db.Column(
+        db.Enum("admin", "super_admin", name="role_enum"),
+        nullable=True,
+        default=None
+    )  # null=usuario normal, 'admin'=admin de centro, 'super_admin'=admin global
     is_active = db.Column(db.Boolean, default=True)
     weekly_hours = db.Column(db.Integer, nullable=False, default=0)
     centro = db.Column(
         db.Enum(
-            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3",
+            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Aluminios Lara", "La esquina del paisa",
             name="centro_enum"
         ),
         nullable=True
     )
-    categoria = db.Column(
-        db.Enum(
-            "Coordinador", "Empleado", "Gestor",
-            name="category_enum"
-        ),
-        nullable=True
-    )
+    center_id = db.Column(db.Integer, db.ForeignKey("center.id", ondelete="SET NULL"), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey("category.id", ondelete="SET NULL"), nullable=True)
     hire_date = db.Column(db.Date, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
     theme_preference = db.Column(db.String(50), default='dark-turquoise', nullable=False)
@@ -80,6 +115,9 @@ class User(db.Model):
     last_exit_notification_sent = db.Column(db.DateTime, nullable=True)   # Última notificación de salida enviada
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    center = db.relationship("Center", backref="users", lazy=True)
+    category = db.relationship("Category", backref="users", lazy=True)
 
     time_records = db.relationship(
         "TimeRecord",

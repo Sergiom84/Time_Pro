@@ -725,6 +725,7 @@ def process_approved_requests():
 
     for req in approved_requests:
         # Mapeo de tipos de solicitud a estados de empleado
+        # Mapeo de tipos de solicitud a estados de empleado
         status_map = {
             "Vacaciones": "Vacaciones",
             "Baja médica": "Baja",

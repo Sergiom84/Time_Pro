@@ -4,7 +4,7 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime, date, timedelta
-from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause
+from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause, Category, Center
 from models.database import db
 import plan_config  # Sistema de configuración multi-plan
 from utils.multitenant import get_client_config
@@ -15,9 +15,91 @@ admin_bp = Blueprint(
     url_prefix="/admin"
 )
 
-# Listas estáticas de centros y categorías disponibles
+# Listas estáticas (DEPRECADAS - usar funciones dinámicas en su lugar)
 CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
-CATEGORIAS_DISPONIBLES = ["Coordinador", "Empleado", "Gestor"]
+DEFAULT_CATEGORIES = ["Coordinador", "Empleado", "Gestor"]
+
+def get_categorias_disponibles():
+    """
+    Obtiene las categorías dinámicas del cliente actual desde la BD.
+    Retorna una lista de nombres de categorías.
+    IMPORTANTE: NO retorna valores hardcodeados, solo lo que está en la BD.
+    """
+    client_id = session.get("client_id")
+    if not client_id:
+        return []
+
+    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
+    return [c.name for c in categories]
+
+def get_category_objects():
+    """
+    Obtiene los objetos Category del cliente actual desde la BD.
+    Retorna una lista de objetos Category.
+    """
+    client_id = session.get("client_id")
+    if not client_id:
+        return []
+
+    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
+    return categories
+
+def get_category_id_by_name(category_name):
+    """
+    Obtiene el ID de una categoría por su nombre.
+    Retorna el ID o None si no existe.
+    """
+    if not category_name:
+        return None
+
+    client_id = session.get("client_id")
+    if not client_id:
+        return None
+
+    category = Category.query.filter_by(client_id=client_id, name=category_name).first()
+    return category.id if category else None
+
+def get_centros_dinamicos():
+    """
+    Obtiene los centros dinámicos del cliente actual desde la BD.
+    Retorna una lista de nombres de centros.
+    """
+    client_id = session.get("client_id")
+    if not client_id:
+        return []
+
+    centers = Center.query.filter_by(client_id=client_id, is_active=True).order_by(Center.name).all()
+    if centers:
+        return [c.name for c in centers]
+
+    return []
+
+def get_center_objects():
+    """
+    Obtiene los objetos Center del cliente actual desde la BD.
+    Retorna una lista de objetos Center.
+    """
+    client_id = session.get("client_id")
+    if not client_id:
+        return []
+
+    centers = Center.query.filter_by(client_id=client_id, is_active=True).order_by(Center.name).all()
+    return centers
+
+def get_center_id_by_name(center_name):
+    """
+    Obtiene el ID de un centro por su nombre.
+    Retorna el ID o None si no existe.
+    """
+    if not center_name:
+        return None
+
+    client_id = session.get("client_id")
+    if not client_id:
+        return None
+
+    center = Center.query.filter_by(client_id=client_id, name=center_name).first()
+    return center.id if center else None
 
 # --------------------------------------------------------------------
 #  UTILIDADES
@@ -25,11 +107,9 @@ CATEGORIAS_DISPONIBLES = ["Coordinador", "Empleado", "Gestor"]
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("is_admin"):
-            flash("Acceso no autorizado.", "danger")
-            return redirect(url_for("auth.login"))
         user = User.query.get(session.get("user_id"))
-        if not user or not user.is_admin:
+        # Verificar que el usuario tenga rol de admin o super_admin
+        if not user or not user.role or user.role not in ('admin', 'super_admin'):
             session.clear()
             flash("Sin permisos de administrador.", "danger")
             return redirect(url_for("auth.login"))
@@ -39,28 +119,47 @@ def admin_required(f):
 # Centro del admin actual (None implica super admin con acceso global)
 
 def get_admin_centro():
+    """
+    Obtiene el centro del admin actual.
+    - Super admin: retorna None (acceso global)
+    - Admin de centro: retorna su centro
+    - Usuario normal: retorna None (no es admin)
+    """
     uid = session.get("user_id")
     if not uid:
         return None
     u = User.query.get(uid)
-    # Considerar "-- Sin categoría --" como sin centro (super admin)
-    if u and u.is_admin and u.centro and u.centro != "-- Sin categoría --":
+    # Si no es admin, retornar None
+    if not u or not is_admin_user(u):
+        return None
+    # Si es super admin, retornar None (acceso global)
+    if is_super_admin_user(u):
+        return None
+    # Admin de centro: retornar su centro (no puede ser "-- Sin categoría --")
+    if u.centro and u.centro != "-- Sin categoría --":
         return u.centro
     return None
 
 def get_centros_disponibles():
     """
-    Devuelve la lista de centros disponibles según el rol del admin.
-    - Super admin (sin centro asignado): ve todos los centros
+    Devuelve la lista de centros disponibles según el rol del admin (dinámicos desde BD).
+    - Super admin: ve todos los centros del cliente
     - Admin de centro específico: solo ve su centro
+    - Usuario normal: sin centros (no es admin)
     """
-    centro_admin = get_admin_centro()
-    if centro_admin:
-        # Admin de centro específico: solo su centro
-        return [centro_admin]
-    else:
-        # Super admin: todos los centros
-        return CENTROS_DISPONIBLES.copy()
+    u = _current_user()
+    if not u or not is_admin_user(u):
+        return []
+
+    # Super admin: todos los centros dinámicos del cliente
+    if is_super_admin_user(u):
+        return get_centros_dinamicos()
+
+    # Admin de centro: obtener su centro desde la BD
+    if u.center:
+        return [u.center.name]  # Retornar nombre del center desde la relación
+
+    return []
 
 # Helpers de permisos
 
@@ -69,16 +168,41 @@ def _current_user():
     return User.query.get(uid) if uid else None
 
 def is_super_admin_user(u: User | None):
-    return bool(u and u.is_admin and (not u.centro or u.centro == "-- Sin categoría --"))
+    """
+    Verifica si un usuario es super admin.
+    En LITE: no hay super admin (solo admin)
+    En PRO: super_admin tiene acceso global
+    """
+    return bool(u and u.role == 'super_admin')
+
+def is_admin_user(u: User | None):
+    """
+    Verifica si un usuario es admin (de centro o super admin).
+    """
+    return bool(u and u.role in ('admin', 'super_admin'))
 
 def can_grant_admin():
+    """
+    Solo super_admin puede crear/asignar otros admins.
+    En LITE: no se permite crear admins (solo el inicial).
+    """
     u = _current_user()
-    # Permitidos explícitos + cualquier super admin actual
-    return bool(is_super_admin_user(u) or (u and u.username in ("Valle", "aDmin")))
+    if not u or not is_super_admin_user(u):
+        return False
+    # Verificar que sea plan PRO
+    client = u.client
+    return client and client.plan == 'pro'
 
 def can_grant_super_admin():
-    # Solo un super admin actual puede otorgar super admin
-    return is_super_admin_user(_current_user())
+    """
+    Solo super_admin en plan PRO puede crear otros super_admin.
+    En LITE: no aplica (no hay super_admin).
+    """
+    u = _current_user()
+    if not is_super_admin_user(u):
+        return False
+    client = u.client
+    return client and client.plan == 'pro'
 
 def format_timedelta(td):
     if td is None:
@@ -102,7 +226,8 @@ def dashboard():
     filtro_categoria = request.args.get("categoria", type=str, default="")
 
     # Totales de usuarios (limitados por centro si aplica)
-    user_q = User.query.filter_by(is_admin=False)
+    # Empleados: usuarios sin rol admin
+    user_q = User.query.filter(User.role.is_(None))
     if centro_admin:
         user_q = user_q.filter(User.centro == centro_admin)
     elif filtro_centro:
@@ -112,10 +237,12 @@ def dashboard():
     total_users = user_q.count()
 
     # Usuarios activos con fichaje abierto (limitados por centro si aplica)
+    # Solo contar empleados (sin rol admin)
     active_q = (
-        db.session.query(TimeRecord.user_id)
+        TimeRecord.query
         .join(User, TimeRecord.user_id == User.id)
-        .filter(TimeRecord.check_in.isnot(None), TimeRecord.check_out.is_(None))
+        .filter(TimeRecord.check_in.isnot(None), TimeRecord.check_out.is_(None), User.role.is_(None))
+        .with_entities(TimeRecord.user_id)
     )
     if centro_admin:
         active_q = active_q.filter(User.centro == centro_admin)
@@ -135,7 +262,7 @@ def dashboard():
         .filter(
             TimeRecord.date >= start_of_week,
             TimeRecord.date <= end_of_week,
-            User.is_admin == False
+            User.role.is_(None)  # Solo empleados (sin rol admin)
         )
     )
     if centro_admin:
@@ -179,7 +306,7 @@ def dashboard():
 
     # Obtener centros disponibles según el rol del admin
     centros = get_centros_disponibles()
-    categorias = CATEGORIAS_DISPONIBLES.copy()
+    categorias = get_categorias_disponibles()
 
     return render_template(
         "admin_dashboard.html",
@@ -198,22 +325,33 @@ def dashboard():
 def manage_users():
     centro_admin = get_admin_centro()
 
+    # Verificar si es super admin (para saber si puede ver usuarios de otros clientes)
+    is_super = is_super_admin_user(_current_user())
+
     # Filtros opcionales
     filtro_centro = request.args.get("centro", type=str, default="")
     filtro_categoria = request.args.get("categoria", type=str, default="")
     search_query = request.args.get("search", type=str, default="")
 
     q = User.query
+
+    # Si es super admin, bypass el filtro multitenant para ver todos los usuarios
+    if is_super:
+        q = q.bypass_tenant_filter()
+
     if centro_admin:
-        q = q.filter(User.centro == centro_admin)
+        # Filtrar por nombre de centro (el admin solo ve su centro)
+        q = q.join(Center, User.center_id == Center.id).filter(Center.name == centro_admin)
     elif filtro_centro:
-        q = q.filter(User.centro == filtro_centro)
+        # Filtrar por nombre de centro dinámico
+        q = q.join(Center, User.center_id == Center.id).filter(Center.name == filtro_centro)
     if filtro_categoria:
-        q = q.filter(User.categoria == filtro_categoria)
+        # Filtrar por nombre de categoría a través de la relación
+        q = q.join(Category, User.category_id == Category.id).filter(Category.name == filtro_categoria)
     if search_query:
         # Buscar en nombre completo (nombre y apellidos) y username
         q = q.filter(
-            (User.full_name.ilike(f"%{search_query}%")) | 
+            (User.full_name.ilike(f"%{search_query}%")) |
             (User.username.ilike(f"%{search_query}%"))
         )
 
@@ -221,7 +359,7 @@ def manage_users():
 
     # Obtener centros disponibles según el rol del admin
     centros = get_centros_disponibles()
-    categorias = CATEGORIAS_DISPONIBLES.copy()
+    categorias = get_categorias_disponibles()
 
     return render_template("manage_users.html", users=users, centros=centros, categorias=categorias, centro_admin=centro_admin)
 
@@ -229,9 +367,14 @@ def manage_users():
 @admin_required
 def add_user():
     centro_admin = get_admin_centro()
-    centros = get_centros_disponibles()
-    categorias = CATEGORIAS_DISPONIBLES.copy()
+    centros = get_centros_dinamicos()  # Centros dinámicos desde BD
+    categorias = get_categorias_disponibles()
     client_id = session.get("client_id")
+
+    # Determinar si el usuario actual puede asignar roles
+    can_assign_admin = can_grant_admin()
+    can_assign_super = can_grant_super_admin()
+    can_assign_any_role = can_assign_admin or can_assign_super
 
     if not client_id:
         flash("No se pudo determinar el cliente activo.", "danger")
@@ -257,10 +400,13 @@ def add_user():
 
         # VALIDACIÓN DE LÍMITE DE EMPLEADOS (VERSION LITE)
         if max_employees is not None:
-            # Contar empleados actuales (excluyendo admins)
-            query = User.query.filter_by(client_id=client_id, is_admin=False)
+            # Contar empleados actuales (solo usuarios sin rol)
+            query = User.query.filter_by(client_id=client_id).filter(User.role.is_(None))
             if centro:
-                query = query.filter_by(centro=centro)
+                # Filtrar por centro dinámico usando join
+                center_id = get_center_id_by_name(centro)
+                if center_id:
+                    query = query.filter_by(center_id=center_id)
             current_employee_count = query.count()
 
             # Verificar si se alcanzó el límite
@@ -288,14 +434,25 @@ def add_user():
             return render_template("user_form.html", user=None, action="add",
                                    form_data=request.form, centro_admin=centro_admin,
                                    centros=centros, categorias=categorias)
-        # Super admin: centro vacío o "-- Sin categoría --"
-        req_is_super  = (centro in (None, "-- Sin categoría --"))
-        is_admin      = req_is_admin if can_grant_admin() else False
-        if req_is_super and not can_grant_super_admin():
-            # Si no puede conceder super admin, forzamos un centro válido
-            if centro in (None, "-- Sin categoría --"):
-                centro = "-- Sin categoría --"  # permitido como valor, pero no super admin salvo privilegio
-        # Nota: ser super admin depende de is_admin y del centro especial (None/"-- Sin categoría --")
+        # Obtener el rol solicitado del formulario
+        # El formulario puede enviar: 'none', 'admin', 'super_admin', o no enviar nada
+        requested_role_str = request.form.get("role", "none")
+
+        # Determinar el rol final del nuevo usuario
+        role = None  # Por defecto: empleado normal
+
+        if requested_role_str == 'admin':
+            # Si solicita admin, verificar permisos
+            if can_grant_admin() or can_grant_super_admin():
+                role = 'admin'
+        elif requested_role_str == 'super_admin':
+            # Si solicita super admin, verificar permisos específicos
+            if can_grant_super_admin():
+                role = 'super_admin'
+                # Super admin no tiene centro específico
+                centro = "-- Sin categoría --"
+            else:
+                flash("No tienes permisos para crear super admin.", "warning")
 
         if not all([username, password, full_name, email]) or weekly_hours is None:
             flash("Todos los campos son obligatorios.", "danger")
@@ -312,16 +469,21 @@ def add_user():
                                    form_data=request.form, centro_admin=centro_admin,
                                    centros=centros, categorias=categorias)
 
+        # Convertir el nombre de categoría a category_id y centro a center_id
+        category_id = get_category_id_by_name(categoria)
+        center_id = get_center_id_by_name(centro) if centro and centro != "-- Sin categoría --" else None
+
         new_user = User(
             client_id       = client_id,
             username         = username,
             full_name        = full_name,
             email            = email,
-            is_admin         = is_admin,
+            role             = role,
             is_active        = True,
             weekly_hours     = weekly_hours,
-            centro           = centro,
-            categoria        = categoria,
+            centro           = centro,  # Mantener por ahora para compatibilidad
+            center_id        = center_id,
+            category_id      = category_id,
             hire_date        = hire_date,
             termination_date = termination_date
         )
@@ -333,15 +495,18 @@ def add_user():
         return redirect(url_for("admin.manage_users"))
 
     return render_template("user_form.html", user=None, action="add", centro_admin=centro_admin,
-                           centros=centros, categorias=categorias)
+                           centros=centros, categorias=categorias,
+                           can_assign_admin=can_assign_admin,
+                           can_assign_super=can_assign_super,
+                           can_assign_any_role=can_assign_any_role)
 
 @admin_bp.route("/users/edit/<int:user_id>", methods=["GET", "POST"])
 @admin_required
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
     centro_admin = get_admin_centro()
-    centros = get_centros_disponibles()
-    categorias = CATEGORIAS_DISPONIBLES.copy()
+    centros = get_centros_dinamicos()  # Centros dinámicos desde BD
+    categorias = get_categorias_disponibles()
 
     if request.method == "POST":
         if user.id == session.get("user_id") and (
@@ -381,12 +546,19 @@ def edit_user(user_id):
         user.weekly_hours  = request.form.get("weekly_hours", type=int)
 
         # Si el admin tiene un centro asignado, forzar que el usuario mantenga ese centro
+        centro_name = None
         if centro_admin:
-            user.centro = centro_admin
+            centro_name = centro_admin
         else:
-            user.centro = request.form.get("centro") or None
+            centro_name = request.form.get("centro") or None
 
-        user.categoria     = request.form.get("categoria") or None
+        # Mantener compatibilidad con ENUM pero usar FK dinámicamente
+        user.centro = centro_name
+        user.center_id = get_center_id_by_name(centro_name) if centro_name and centro_name != "-- Sin categoría --" else None
+
+        # Convertir el nombre de categoría a category_id
+        categoria_name = request.form.get("categoria") or None
+        user.category_id = get_category_id_by_name(categoria_name) if categoria_name else None
 
         # Fechas de alta y baja
         hire_date_str = request.form.get("hire_date")
@@ -448,8 +620,238 @@ def toggle_user_active(user_id):
     return redirect(url_for("admin.manage_users"))
 
 # --------------------------------------------------------------------
-#  REGISTROS 
-# --------------------------------------------------------------------
+#  CATEGORÍAS
+# ----
+
+@admin_bp.route("/categories")
+@admin_required
+def manage_categories():
+    """Listar categorías disponibles para el cliente actual"""
+    client_id = session.get("client_id")
+    if not client_id:
+        flash("No se pudo determinar el cliente activo.", "danger")
+        return redirect(url_for("admin.manage_users"))
+
+    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
+    return render_template("manage_categories.html", categories=categories)
+
+
+@admin_bp.route("/categories/add", methods=["GET", "POST"])
+@admin_required
+def add_category():
+    """Agregar nueva categoría"""
+    client_id = session.get("client_id")
+    if not client_id:
+        flash("No se pudo determinar el cliente activo.", "danger")
+        return redirect(url_for("admin.manage_users"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+
+        if not name:
+            flash("El nombre de la categoría es obligatorio.", "danger")
+            return render_template("category_form.html", category=None, action="add")
+
+        # Verificar que no existe una categoría con el mismo nombre para este cliente
+        existing = Category.query.filter_by(client_id=client_id, name=name).first()
+        if existing:
+            flash(f"Ya existe una categoría con el nombre '{name}'.", "danger")
+            return render_template("category_form.html", category=None, action="add")
+
+        category = Category(
+            client_id=client_id,
+            name=name,
+            description=description
+        )
+        db.session.add(category)
+        db.session.commit()
+        flash(f"Categoría '{name}' creada exitosamente.", "success")
+        return redirect(url_for("admin.manage_categories"))
+
+    return render_template("category_form.html", category=None, action="add")
+
+
+@admin_bp.route("/categories/edit/<int:category_id>", methods=["GET", "POST"])
+@admin_required
+def edit_category(category_id):
+    """Editar categoría"""
+    category = Category.query.get_or_404(category_id)
+
+    # Verificar que el usuario tenga permiso para editar esta categoría
+    if category.client_id != session.get("client_id"):
+        flash("No tienes permiso para editar esta categoría.", "danger")
+        return redirect(url_for("admin.manage_categories"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+
+        if not name:
+            flash("El nombre de la categoría es obligatorio.", "danger")
+            return render_template("category_form.html", category=category, action="edit")
+
+        # Verificar que no existe otra categoría con el mismo nombre para este cliente
+        existing = Category.query.filter(
+            Category.client_id == category.client_id,
+            Category.name == name,
+            Category.id != category_id
+        ).first()
+        if existing:
+            flash(f"Ya existe otra categoría con el nombre '{name}'.", "danger")
+            return render_template("category_form.html", category=category, action="edit")
+
+        category.name = name
+        category.description = description
+        db.session.commit()
+        flash(f"Categoría '{name}' actualizada exitosamente.", "success")
+        return redirect(url_for("admin.manage_categories"))
+
+    return render_template("category_form.html", category=category, action="edit")
+
+
+@admin_bp.route("/categories/delete/<int:category_id>", methods=["POST"])
+@admin_required
+def delete_category(category_id):
+    """Eliminar categoría"""
+    category = Category.query.get_or_404(category_id)
+
+    # Verificar que el usuario tenga permiso para eliminar esta categoría
+    if category.client_id != session.get("client_id"):
+        flash("No tienes permiso para eliminar esta categoría.", "danger")
+        return redirect(url_for("admin.manage_categories"))
+
+    # Verificar que no hay usuarios usando esta categoría
+    users_count = User.query.filter_by(category_id=category_id).count()
+    if users_count > 0:
+        flash(f"No puedes eliminar esta categoría porque está siendo utilizada por {users_count} usuario(s).", "danger")
+        return redirect(url_for("admin.manage_categories"))
+
+    name = category.name
+    db.session.delete(category)
+    db.session.commit()
+    flash(f"Categoría '{name}' eliminada.", "success")
+    return redirect(url_for("admin.manage_categories"))
+
+
+# ----
+#  CENTROS
+# ----
+
+@admin_bp.route("/centers")
+@admin_required
+def manage_centers():
+    """Listar centros disponibles para el cliente actual"""
+    client_id = session.get("client_id")
+    if not client_id:
+        flash("No se pudo determinar el cliente activo.", "danger")
+        return redirect(url_for("admin.manage_users"))
+
+    centers = Center.query.filter_by(client_id=client_id).order_by(Center.name).all()
+    return render_template("manage_centers.html", centers=centers)
+
+
+@admin_bp.route("/centers/add", methods=["GET", "POST"])
+@admin_required
+def add_center():
+    """Agregar nuevo centro"""
+    client_id = session.get("client_id")
+    if not client_id:
+        flash("No se pudo determinar el cliente activo.", "danger")
+        return redirect(url_for("admin.manage_users"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        is_active = request.form.get("is_active") == "on"
+
+        if not name:
+            flash("El nombre del centro es obligatorio.", "danger")
+            return render_template("center_form.html", center=None, action="add")
+
+        # Verificar que no existe un centro con el mismo nombre para este cliente
+        existing = Center.query.filter_by(client_id=client_id, name=name).first()
+        if existing:
+            flash(f"Ya existe un centro con el nombre '{name}'.", "danger")
+            return render_template("center_form.html", center=None, action="add")
+
+        center = Center(
+            client_id=client_id,
+            name=name,
+            is_active=is_active
+        )
+        db.session.add(center)
+        db.session.commit()
+        flash(f"Centro '{name}' creado exitosamente.", "success")
+        return redirect(url_for("admin.manage_centers"))
+
+    return render_template("center_form.html", center=None, action="add")
+
+
+@admin_bp.route("/centers/edit/<int:center_id>", methods=["GET", "POST"])
+@admin_required
+def edit_center(center_id):
+    """Editar centro"""
+    center = Center.query.get_or_404(center_id)
+
+    # Verificar que el usuario tenga permiso para editar este centro
+    if center.client_id != session.get("client_id"):
+        flash("No tienes permiso para editar este centro.", "danger")
+        return redirect(url_for("admin.manage_centers"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        is_active = request.form.get("is_active") == "on"
+
+        if not name:
+            flash("El nombre del centro es obligatorio.", "danger")
+            return render_template("center_form.html", center=center, action="edit")
+
+        # Verificar que no existe otro centro con el mismo nombre para este cliente
+        existing = Center.query.filter(
+            Center.client_id == center.client_id,
+            Center.name == name,
+            Center.id != center_id
+        ).first()
+        if existing:
+            flash(f"Ya existe otro centro con el nombre '{name}'.", "danger")
+            return render_template("center_form.html", center=center, action="edit")
+
+        center.name = name
+        center.is_active = is_active
+        db.session.commit()
+        flash(f"Centro '{name}' actualizado exitosamente.", "success")
+        return redirect(url_for("admin.manage_centers"))
+
+    return render_template("center_form.html", center=center, action="edit")
+
+
+@admin_bp.route("/centers/delete/<int:center_id>", methods=["POST"])
+@admin_required
+def delete_center(center_id):
+    """Eliminar centro"""
+    center = Center.query.get_or_404(center_id)
+
+    # Verificar que el usuario tenga permiso para eliminar este centro
+    if center.client_id != session.get("client_id"):
+        flash("No tienes permiso para eliminar este centro.", "danger")
+        return redirect(url_for("admin.manage_centers"))
+
+    # Verificar que no hay usuarios usando este centro
+    users_count = User.query.filter_by(center_id=center_id).count()
+    if users_count > 0:
+        flash(f"No puedes eliminar este centro porque está siendo utilizado por {users_count} usuario(s).", "danger")
+        return redirect(url_for("admin.manage_centers"))
+
+    name = center.name
+    db.session.delete(center)
+    db.session.commit()
+    flash(f"Centro '{name}' eliminado.", "success")
+    return redirect(url_for("admin.manage_centers"))
+
+
+# ----
+#  REGISTROS
+# ----
 @admin_bp.route("/records")
 @admin_required
 def manage_records():
@@ -491,7 +893,7 @@ def manage_records():
         .filter(
             TimeRecord.date >= start_of_week,
             TimeRecord.date <= end_of_week,
-            User.is_admin == False,
+            User.role.is_(None),  # Solo empleados (sin rol admin)
             TimeRecord.check_out.isnot(None)
         )
     )
@@ -520,7 +922,8 @@ def manage_records():
         flash("Formato de fecha/hora inválido en filtros.", "warning")
 
     if categoria:
-        q = q.filter(User.categoria == categoria)
+        # Filtrar por nombre de categoría a través de la relación
+        q = q.join(Category, User.category_id == Category.id).filter(Category.name == categoria)
     
     # Filtrar por búsqueda de nombre completo y username
     if search_query:
@@ -588,6 +991,7 @@ def manage_records():
 
     # Obtener centros disponibles según el rol del admin
     centros = get_centros_disponibles()
+    categorias = get_categorias_disponibles()
 
     return render_template(
         "manage_records.html",
@@ -598,6 +1002,7 @@ def manage_records():
         week_range=week_range,
         is_current_week=is_current_week,
         centros=centros,
+        categorias=categorias,
         centro_admin=centro_admin
     )
 
@@ -647,7 +1052,9 @@ def delete_record(record_id):
 @admin_required
 def admin_calendar():
     # Pasamos el centro del admin (None => super admin)
-    return render_template("admin_calendar.html", centro_admin=get_admin_centro())
+    # Pasar centros dinámicos desde BD
+    centros = get_centros_disponibles()
+    return render_template("admin_calendar.html", centro_admin=get_admin_centro(), centros=centros)
 
 @admin_bp.route("/api/events")
 @admin_required
@@ -659,9 +1066,21 @@ def api_events():
     status  = request.args.get("status")
     centro  = request.args.get("centro")
 
+    STATUS_GROUPS = {
+        "Trabajado": ["Trabajado"],
+        "Baja": ["Baja"],
+        "Ausente": ["Ausente", "Ausencia justificada", "Ausencia injustificada"],
+        "Vacaciones": ["Vacaciones", "Permiso especial"]
+    }
+    STATUS_ALIAS = {s: group for group, values in STATUS_GROUPS.items() for s in values}
+
     # ==== Cambios para manejo correcto de fechas ====
     start_date = None
     end_date = None
+
+    # Si no hay fechas, usar el mes actual como rango por defecto
+    today = date.today()
+
     if start:
         try:
             if 'T' in start:
@@ -670,6 +1089,7 @@ def api_events():
                 start_date = datetime.strptime(start, "%Y-%m-%d").date()
         except Exception:
             start_date = None
+
     if end:
         try:
             if 'T' in end:
@@ -679,15 +1099,31 @@ def api_events():
         except Exception:
             end_date = None
 
-    q = EmployeeStatus.query.join(User).filter(User.is_admin == False)
+    # Si no hay rango de fechas, usar el mes actual
+    if not start_date:
+        start_date = date(today.year, today.month, 1)
+    if not end_date:
+        # Último día del mes actual
+        if today.month == 12:
+            end_date = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+    q = EmployeeStatus.query.join(User).filter(User.role.is_(None))  # Solo empleados
 
     # Scope por centro del admin (si tiene asignado)
     centro_admin = get_admin_centro()
     if centro_admin:
-        q = q.filter(User.centro == centro_admin)
+        # Filtrar por centro dinámico usando center_id
+        center_id = get_center_id_by_name(centro_admin)
+        if center_id:
+            q = q.filter(User.center_id == center_id)
     elif centro:
         # Si no hay centro del admin, permitir filtrar por parámetro opcional
-        q = q.filter(User.centro == centro)
+        # Filtrar por centro dinámico usando center_id
+        center_id = get_center_id_by_name(centro)
+        if center_id:
+            q = q.filter(User.center_id == center_id)
 
     if user_id:
         q = q.filter(EmployeeStatus.user_id == user_id)
@@ -696,7 +1132,8 @@ def api_events():
     if end_date:
         q = q.filter(EmployeeStatus.date <= end_date)
     if status:
-        q = q.filter(EmployeeStatus.status == status)
+        status_values = STATUS_GROUPS.get(status, [status])
+        q = q.filter(EmployeeStatus.status.in_(status_values))
 
     events = [
         {
@@ -708,11 +1145,12 @@ def api_events():
                 "Baja"      : "#f87171",
                 "Ausente"   : "#fbbf24",
                 "Vacaciones": "#34d399"
-            }.get(es.status, "#9ca3af"),
+            }.get(STATUS_ALIAS.get(es.status, es.status), "#9ca3af"),
             "extendedProps": {
                 "notes": es.notes,
                 "username": es.user.full_name or es.user.username,
-                "category": es.user.categoria
+                "category": es.user.category.name if es.user.category else "-",
+                "filterStatus": STATUS_ALIAS.get(es.status, es.status)
             },
             "allDay": True
         }
@@ -724,14 +1162,20 @@ def api_events():
 @admin_required
 def api_employees():
     centro = request.args.get("centro")
-    query = User.query.filter_by(is_admin=False)
+    query = User.query.filter(User.role.is_(None))  # Solo empleados (sin rol admin)
 
     # Limitar por centro del admin, si aplica (super admin => None)
     centro_admin = get_admin_centro()
     if centro_admin:
-        query = query.filter(User.centro == centro_admin)
+        # Filtrar por centro dinámico usando center_id
+        center_id = get_center_id_by_name(centro_admin)
+        if center_id:
+            query = query.filter(User.center_id == center_id)
     elif centro:
-        query = query.filter(User.centro == centro)
+        # Filtrar por centro dinámico usando center_id
+        center_id = get_center_id_by_name(centro)
+        if center_id:
+            query = query.filter(User.center_id == center_id)
 
     employees = query.order_by(User.full_name).all()
     return jsonify([
@@ -752,7 +1196,8 @@ def api_centro_info():
         users = users.filter(User.centro == centro)
 
     users = users.all()
-    categorias = sorted(set(u.categoria for u in users if u.categoria))
+    # Obtener categorías dinámicas del cliente actual (no hardcodeadas)
+    categorias = get_categorias_disponibles()
     horas = sorted(set(u.weekly_hours for u in users if u.weekly_hours is not None))
     return jsonify({
         "usuarios": [{"id": u.id, "username": u.username, "full_name": u.full_name} for u in users],
@@ -855,7 +1300,7 @@ def open_records():
         .filter(
             TimeRecord.check_in.isnot(None),
             TimeRecord.check_out.is_(None),
-            User.is_admin == False
+            User.role.is_(None)  # Solo empleados
         )
     )
     if centro_admin:
@@ -1006,7 +1451,7 @@ def leave_requests():
 
     # Obtener lista de centros y categorías para los filtros
     centros = get_centros_disponibles()
-    categorias = ["Coordinador", "Empleado", "Gestor"]
+    categorias = get_categorias_disponibles()
 
     return render_template(
         "admin_leave_requests.html",
@@ -1238,7 +1683,7 @@ def work_pauses():
         today_iso=today_iso,
         is_today=is_today,
         centros=centros,
-        categorias=CATEGORIAS_DISPONIBLES,
+        categorias=get_categorias_disponibles(),
         filter_centro=filter_centro,
         filter_categoria=filter_categoria,
         filter_usuario=filter_usuario,

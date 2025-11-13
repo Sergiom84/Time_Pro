@@ -201,15 +201,11 @@
         </div>
 
         <div class="flex items-center gap-4">
-          {% if session.get('is_admin') and session.get('admin_centro') %}
+          <!-- Mostrar el centro del admin o su rol -->
+          {% if session.get('admin_centro') %}
             <span class="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
                   style="background-color: var(--accent-primary);">
               {{ session.get('admin_centro') }}
-            </span>
-          {% elif session.get('is_admin') %}
-            <span class="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm"
-                  style="background-color: var(--accent-primary);">
-              Super Admin
             </span>
           {% endif %}
           {% if greeting %}

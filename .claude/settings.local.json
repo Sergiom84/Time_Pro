@@ -86,7 +86,14 @@
       "Bash(nslookup:*)",
       "Bash(timeout 10 venv/Scripts/python.exe:*)",
       "Bash(git merge:*)",
-      "Bash(timeout 15 venv/Scripts/python.exe:*)"
+      "Bash(timeout 15 venv/Scripts/python.exe:*)",
+      "Bash(.env)",
+      "Bash(git restore:*)",
+      "Bash(./venv/Scripts/python:*)",
+      "Bash(tree:*)",
+      "Bash(source:*)",
+      "Bash(timeout 5 python3:*)",
+      "Bash(psql \"postgresql://postgres.gqesfclbingbihakiojm:b48udHiKqlareTHj@aws-1-eu-west-1.pooler.supabase.com:6543/postgres\" -c \"SELECT id, name, logo_url FROM client WHERE id IN (1, 2, 4) ORDER BY id;\")"
     ],
     "deny": [],
     "ask": []
