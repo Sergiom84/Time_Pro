@@ -48,11 +48,11 @@
     </div>
 
     <div class="md:col-span-2">
-      <label class="block text-sm text-gray-300 mb-1">Notas</label>
-      <input type="text" name="notes" value=""
+      <label class="block text-sm text-gray-300 mb-1">Notas Admin</label>
+      <input type="text" name="admin_notes" value=""
              autocomplete="off"
              class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100"
-             placeholder="Ingrese notas (opcional)">
+             placeholder="Ingrese notas de administrador (opcional)">
     </div>
 
     <div class="md:col-span-5 flex justify-end gap-2">
@@ -96,9 +96,20 @@
             <option value="Vacaciones">Vacaciones</option>
           </select>
         </div>
+        <!-- Nueva fila: Entrada / Salida -->
+        <div class="mb-4 grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Entrada</label>
+            <input type="time" id="edit_check_in" name="edit_check_in" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100" placeholder="HH:MM">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Salida</label>
+            <input type="time" id="edit_check_out" name="edit_check_out" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100" placeholder="HH:MM">
+          </div>
+        </div>
         <div class="mb-4">
-          <label class="block text-sm text-gray-300 mb-1">Notas</label>
-          <input type="text" id="edit_notes" name="edit_notes" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
+          <label class="block text-sm text-gray-300 mb-1">Notas Admin</label>
+          <input type="text" id="edit_admin_notes" name="admin_notes" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-gray-100">
         </div>
         <div class="flex justify-between mt-6">
           <button type="button" id="closeModalBtn" class="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded text-white">Cancelar</button>
@@ -116,10 +127,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   // ---------- LIMPIAR CAMPOS AL CARGAR ----------
-  // Asegurar que el campo de notas esté vacío al cargar la página
-  const notesInput = document.querySelector('input[name="notes"]');
-  if (notesInput) {
-    notesInput.value = '';
+  // Asegurar que el campo de notas admin esté vacío al cargar la página
+  const adminNotesInput = document.querySelector('input[name="admin_notes"]');
+  if (adminNotesInput) {
+    adminNotesInput.value = '';
   }
 
   // ---------- VARIABLES GLOBALES ----------
@@ -164,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mostrar modal de edición
       const modal = document.getElementById('editModal');
       modal.classList.remove('hidden');
+      const props = info.event.extendedProps || {};
       document.getElementById('edit_status_id').value = info.event.id;
       // Mostrar la fecha en formato día/mes/año
       try {
@@ -177,10 +189,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit_date').value = info.event.startStr;
       }
       document.getElementById('edit_status').value = info.event.title.split(' - ')[0];
-      // Las notas deben mostrarse vacías salvo que el empleado escribiera algo
-      const rawNotes = info.event.extendedProps.notes;
-      const defaultAutoText = 'Registro automático de fichaje';
-      document.getElementById('edit_notes').value = (rawNotes && rawNotes.trim() && rawNotes !== defaultAutoText) ? rawNotes : '';
+      // Prefill Entrada/Salida si existen en extendedProps
+      document.getElementById('edit_check_in').value = (props.check_in_time || '').slice(0,5);
+      document.getElementById('edit_check_out').value = (props.check_out_time || '').slice(0,5);
+      // Mostrar las notas del admin (no las del empleado)
+      document.getElementById('edit_admin_notes').value = props.admin_notes || '';
 
       // Delete (enviar POST)
       document.getElementById('deleteBtn').onclick = function() {
@@ -243,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     form.start_date.value = '';
     form.end_date.value = '';
     form.status.value = '';
-    form.notes.value = '';  // Limpiar también el campo de notas
+    form.admin_notes.value = '';  // Limpiar también el campo de notas admin
 
     // Recargar eventos
     cal.refetchEvents();
@@ -259,9 +272,11 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const status_id = document.getElementById('edit_status_id').value;
     const status = document.getElementById('edit_status').value;
-    const notes = document.getElementById('edit_notes').value;
+    const admin_notes = document.getElementById('edit_admin_notes').value;
+    const check_in = document.getElementById('edit_check_in').value;   // HH:MM
+    const check_out = document.getElementById('edit_check_out').value; // HH:MM
 
-    console.log('Editando estado:', { status_id, status, notes });
+    console.log('Editando estado:', { status_id, status, admin_notes });
 
     // Si el estado está vacío, eliminar el registro en lugar de actualizarlo
     if (!status || status === '') {
@@ -290,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(`/admin/employees/{{ user.id }}/status/edit/${status_id}`, {
       method: "POST",
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status, notes})
+      body: JSON.stringify({status, admin_notes, check_in, check_out})
     })
     .then(response => {
       console.log('Respuesta del servidor:', response);
