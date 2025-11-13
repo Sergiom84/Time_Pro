@@ -91,6 +91,7 @@
             <th class="px-3 py-2 border-b border-gray-700">{{ plan_config.center_label }}</th>
             {% endif %}
             <th class="px-3 py-2 border-b border-gray-700">Notas</th>
+            <th class="px-3 py-2 border-b border-gray-700">Notas Admin</th>
             <th class="px-3 py-2 border-b border-gray-700">Última Modificación</th>
             <th class="px-3 py-2 border-b border-gray-700">Acciones</th>
           </tr>
@@ -116,6 +117,7 @@
             <td class="px-3 py-2">{{ item.record.user.center.name if item.record.user.center else '-' }}</td>
             {% endif %}
             <td class="px-3 py-2">{{ item.record.notes or '' }}</td>
+            <td class="px-3 py-2">{{ item.record.admin_notes or '' }}</td>
             <td class="px-3 py-2 whitespace-nowrap">{{ item.record.updated_at.strftime("%d-%m-%Y %H:%M:%S") if item.record.updated_at else '-' }}</td>
             <td class="px-3 py-2 whitespace-nowrap">
               <div class="flex items-center gap-2">
@@ -133,7 +135,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="12" class="px-3 py-3 border-b border-gray-700 text-center text-gray-500">
+            <td colspan="{{ '13' if plan_config.show_center_selector else '12' }}" class="px-3 py-3 border-b border-gray-700 text-center text-gray-500">
               No hay registros para mostrar.
             </td>
           </tr>
