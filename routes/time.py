@@ -218,7 +218,8 @@ def dashboard_employee():
         user=user,
         today_record=today_record,
         recent_records=recent_fmt,
-        active_pause=active_pause
+        active_pause=active_pause,
+        client_logo_url=user.client.logo_url if getattr(user, "client", None) else None
     )
 
 

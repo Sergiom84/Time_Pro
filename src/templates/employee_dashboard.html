@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body data-theme="dark-turquoise" class="font-sans min-h-screen m-0 p-6 sm:p-8" style="background-color: var(--bg-primary); color: var(--text-primary)">
+<body data-theme="dark-turquoise" data-logo-url="{{ client_logo_url or '' }}" class="font-sans min-h-screen m-0 p-6 sm:p-8" style="background-color: var(--bg-primary); color: var(--text-primary)">
   <div class="mx-auto max-w-5xl">
 
     <!-- Encabezado -->
@@ -15,8 +15,8 @@
       <div class="flex items-center gap-6">
         <!-- Logo círculo con borde turquesa -->
         <div class="w-20 h-20 rounded-full border-4 bg-gray-300 flex items-center justify-center overflow-hidden" style="border-color: var(--accent-primary);">
-          <img id="clientLogo" src="" alt="Logo" class="w-full h-full object-cover hidden">
-          <span id="logoPlaceholder" class="text-gray-500 text-sm font-medium">Logo</span>
+          <img id="clientLogo" src="{{ client_logo_url or '' }}" alt="Logo" class="w-full h-full object-cover {{ '' if client_logo_url else 'hidden' }}">
+          <span id="logoPlaceholder" class="text-gray-500 text-sm font-medium {{ 'hidden' if client_logo_url else '' }}">Logo</span>
         </div>
         <div>
           <h1 class="text-2xl sm:text-4xl font-bold" style="color: var(--accent-primary);">
@@ -519,29 +519,43 @@
       document.getElementById('clearPauseFile').classList.add('hidden');
     }
 
+    const logoImg = document.getElementById('clientLogo');
+    const logoPlaceholder = document.getElementById('logoPlaceholder');
+
+    function applyLogo(url) {
+      if (!url) {
+        return false;
+      }
+      logoImg.src = url;
+      logoImg.onerror = () => {
+        logoImg.classList.add('hidden');
+        logoPlaceholder.classList.remove('hidden');
+      };
+      logoImg.onload = () => {
+        logoImg.classList.remove('hidden');
+        logoPlaceholder.classList.add('hidden');
+      };
+      return true;
+    }
+
     // ========== CARGAR LOGO DEL CLIENTE ==========
     async function loadClientLogo() {
+      const initialLogoUrl = document.body.dataset.logoUrl;
+      if (applyLogo(initialLogoUrl)) {
+        return;
+      }
+
       try {
         const response = await fetch('/auth/api/current-client', {
           credentials: 'include'
         });
+        if (!response.ok) {
+          return;
+        }
         const data = await response.json();
 
         if (data.logo_url) {
-          const logoImg = document.getElementById('clientLogo');
-          const logoPlaceholder = document.getElementById('logoPlaceholder');
-
-          logoImg.src = data.logo_url;
-          logoImg.onerror = () => {
-            // Si la imagen no carga, mostrar placeholder
-            logoImg.classList.add('hidden');
-            logoPlaceholder.classList.remove('hidden');
-          };
-          logoImg.onload = () => {
-            // Si la imagen carga exitosamente, mostrarla y ocultar placeholder
-            logoImg.classList.remove('hidden');
-            logoPlaceholder.classList.add('hidden');
-          };
+          applyLogo(data.logo_url);
         }
       } catch (error) {
         console.error('Error al cargar logo del cliente:', error);

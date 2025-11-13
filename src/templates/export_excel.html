@@ -87,6 +87,8 @@
         <!-- Filtros de Estado -->
         <div class="mb-8">
             <div class="flex flex-wrap gap-4">
+                <!-- Forzar que siempre se envíe el estado Trabajado para incluir fichajes en exportaciones -->
+                <input type="hidden" name="status" value="Trabajado">
                 <label class="inline-flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" name="status" value="Trabajado" checked
                            class="h-4 w-4 rounded focus:ring-2 focus:ring-blue-500"
