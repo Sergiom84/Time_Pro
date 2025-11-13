@@ -1041,7 +1041,7 @@ def edit_record(record_id):
             record.date      = datetime.strptime(ds, "%Y-%m-%d").date()
             record.check_in  = datetime.strptime(f"{ds} {ci}", "%Y-%m-%d %H:%M:%S") if ci else None
             record.check_out = datetime.strptime(f"{ds} {co}", "%Y-%m-%d %H:%M:%S") if co else None
-            record.notes     = request.form.get("notes")
+            # NO modificar record.notes - esas son solo del empleado
             record.admin_notes = request.form.get("admin_notes")
             record.modified_by = session.get("user_id")
 
@@ -1175,16 +1175,24 @@ def api_events():
         color_key = es.request_type if es.request_type else es.status
         color = color_map.get(color_key, "#9ca3af")
 
+        # Buscar TimeRecord del mismo día para pre-rellenar horas en el modal
+        tr = TimeRecord.query.filter_by(user_id=es.user_id, date=es.date).first()
+        check_in_time = tr.check_in.strftime("%H:%M:%S") if tr and tr.check_in else None
+        check_out_time = tr.check_out.strftime("%H:%M:%S") if tr and tr.check_out else None
+
         events.append({
-            "id"   : es.id,
+            "id": es.id,
             "title": f"{es.status} - {es.user.full_name or es.user.username}",
             "start": es.date.isoformat(),
             "color": color,
             "extendedProps": {
                 "notes": es.notes,
+                "admin_notes": es.admin_notes,  # Incluir notas del admin
                 "username": es.user.full_name or es.user.username,
                 "category": es.user.category.name if es.user.category else "-",
-                "filterStatus": STATUS_ALIAS.get(es.status, es.status)
+                "filterStatus": STATUS_ALIAS.get(es.status, es.status),
+                "check_in_time": check_in_time,
+                "check_out_time": check_out_time
             },
             "allDay": True
         })
@@ -1255,7 +1263,7 @@ def manage_employee_status(user_id):
         start_str = request.form.get("start_date")
         end_str   = request.form.get("end_date") or start_str
         status    = request.form.get("status", "")
-        notes     = request.form.get("notes", "")
+        admin_notes = request.form.get("admin_notes", "")  # Admin escribe en admin_notes
 
         if not start_str:
             flash("Indica la fecha de inicio.", "danger")
@@ -1280,7 +1288,7 @@ def manage_employee_status(user_id):
             ).first()
             if existing:
                 existing.status = status
-                existing.notes  = notes
+                existing.admin_notes = admin_notes  # Guardar en admin_notes, no en notes
             else:
                 client_id = session.get("client_id", 1)  # Multi-tenant
                 db.session.add(EmployeeStatus(
@@ -1288,7 +1296,7 @@ def manage_employee_status(user_id):
                     user_id = user_id,
                     date    = day,
                     status  = status,
-                    notes   = notes
+                    admin_notes = admin_notes  # Guardar en admin_notes, no en notes
                 ))
         db.session.commit()
         flash("Estado guardado.", "success")
@@ -1313,8 +1321,60 @@ def delete_employee_status(user_id, status_id):
 def edit_employee_status(user_id, status_id):
     status = EmployeeStatus.query.get_or_404(status_id)
     data = request.get_json()
+
+    # Actualizar estado y notas del admin
     status.status = data.get("status")
-    status.notes = data.get("notes")
+    status.admin_notes = data.get("admin_notes")  # Admin escribe en admin_notes
+
+    # Manejo de horas de entrada/salida (TimeRecord)
+    check_in = (data.get("check_in") or "").strip()
+    check_out = (data.get("check_out") or "").strip()
+
+    def parse_time(t):
+        if not t:
+            return None
+        try:
+            # soporta HH:MM o HH:MM:SS
+            fmt = "%H:%M:%S" if len(t.split(":")) == 3 else "%H:%M"
+            tm = datetime.strptime(t, fmt).time()
+            return tm
+        except Exception:
+            return None
+
+    ci_time = parse_time(check_in)
+    co_time = parse_time(check_out)
+
+    # Crear/actualizar/eliminar TimeRecord del día
+    tr = TimeRecord.query.filter_by(user_id=user_id, date=status.date).first()
+    if ci_time or co_time:
+        if not tr:
+            tr = TimeRecord(
+                client_id=status.client_id,
+                user_id=user_id,
+                date=status.date
+            )
+            db.session.add(tr)
+        if ci_time:
+            tr.check_in = datetime.combine(status.date, ci_time)
+        else:
+            tr.check_in = None
+        if co_time:
+            tr.check_out = datetime.combine(status.date, co_time)
+        else:
+            tr.check_out = None
+        # Si el admin ha escrito notas en el modal, guardarlas también en el TimeRecord
+        if data.get("admin_notes") is not None:
+            tr.admin_notes = data.get("admin_notes") or None
+
+        # Validación simple: salida no antes que entrada
+        if tr.check_in and tr.check_out and tr.check_out < tr.check_in:
+            db.session.rollback()
+            return jsonify({"ok": False, "error": "La salida no puede ser anterior a la entrada."}), 400
+    else:
+        # Si no hay horas y existe un TimeRecord, lo eliminamos
+        if tr:
+            db.session.delete(tr)
+
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -1392,6 +1452,9 @@ def leave_requests():
     # Obtener filtros de la URL
     filter_centro = request.args.get("centro", "all")
     filter_categoria = request.args.get("categoria", "all")
+    filter_categoria_id, filter_categoria_none = parse_category_filter(
+        filter_categoria if filter_categoria != "all" else ""
+    )
     filter_categoria_id, filter_categoria_none = parse_category_filter(
         filter_categoria if filter_categoria != "all" else ""
     )
@@ -1676,6 +1739,9 @@ def work_pauses():
     filter_centro = request.args.get("centro", "all")
     filter_categoria = request.args.get("categoria", "all")
     filter_usuario = request.args.get("usuario", "")
+    filter_categoria_id, filter_categoria_none = parse_category_filter(
+        filter_categoria if filter_categoria != "all" else ""
+    )
 
     try:
         filter_date = datetime.strptime(filter_date, "%Y-%m-%d").date()
