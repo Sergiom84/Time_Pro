@@ -212,6 +212,7 @@
             <th class="px-3 py-3 border-b border-gray-700">Empleado</th>
             <th class="px-3 py-3 border-b border-gray-700">Tipo</th>
             <th class="px-3 py-3 border-b border-gray-700">Notas</th>
+            <th class="px-3 py-3 border-b border-gray-700">Notas Admin</th>
             <th class="px-3 py-3 border-b border-gray-700">Fechas</th>
             <th class="px-3 py-3 border-b border-gray-700">Estado</th>
             <th class="px-3 py-3 border-b border-gray-700">Aprobado por</th>
@@ -231,6 +232,11 @@
               <td class="px-3 py-3">
                 <div class="max-w-xs truncate" title="{{ request.reason or '-' }}">
                   {{ request.reason or '-' }}
+                </div>
+              </td>
+              <td class="px-3 py-3">
+                <div class="max-w-xs truncate" title="{{ request.admin_notes or '-' }}">
+                  {{ request.admin_notes or '-' }}
                 </div>
               </td>
               <td class="px-3 py-3 whitespace-nowrap">

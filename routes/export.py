@@ -123,7 +123,7 @@ def handle_daily_excel_export(req):
     if time_records:
         ws1 = wb.active
         ws1.title = "Registros de Fichaje"
-        header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas"]
+        header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Notas Admin"]
         for col_num, header_text in enumerate(header1, 1):
             cell = ws1.cell(row=1, column=col_num)
             cell.value = header_text
@@ -149,6 +149,7 @@ def handle_daily_excel_export(req):
             ws1.cell(row=row_num, column=7).value = record.check_out.strftime("%H:%M:%S") if record.check_out else "-"
             ws1.cell(row=row_num, column=8).value = hours_worked
             ws1.cell(row=row_num, column=9).value = record.notes
+            ws1.cell(row=row_num, column=10).value = record.admin_notes
             row_num += 1
 
         for col_num, _ in enumerate(header1, 1):
@@ -160,7 +161,7 @@ def handle_daily_excel_export(req):
     # Pestaña 2: Bajas y Ausencias
     if employee_statuses:
         ws2 = wb.create_sheet("Bajas y Ausencias")
-        header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas"]
+        header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas", "Notas Admin"]
         for col_num, header_text in enumerate(header2, 1):
             cell = ws2.cell(row=1, column=col_num)
             cell.value = header_text
@@ -178,6 +179,7 @@ def handle_daily_excel_export(req):
             ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
             ws2.cell(row=row_num, column=6).value = status_record.status
             ws2.cell(row=row_num, column=7).value = status_record.notes or "-"
+            ws2.cell(row=row_num, column=8).value = status_record.admin_notes or "-"
             row_num += 1
 
         for col_num, _ in enumerate(header2, 1):
@@ -186,7 +188,7 @@ def handle_daily_excel_export(req):
 
     # Pestaña 3: Resumen Consolidado
     ws3 = wb.create_sheet("Resumen Consolidado")
-    header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas"]
+    header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas", "Notas Admin"]
     for col_num, header_text in enumerate(header3, 1):
         cell = ws3.cell(row=1, column=col_num)
         cell.value = header_text
@@ -213,7 +215,8 @@ def handle_daily_excel_export(req):
             'entrada': record.check_in.strftime("%H:%M:%S") if record.check_in else "-",
             'salida': record.check_out.strftime("%H:%M:%S") if record.check_out else "-",
             'horas': hours_worked,
-            'notas': record.notes or "-"
+            'notas': record.notes or "-",
+            'admin_notes': record.admin_notes or "-"
         })
 
     for status_record in employee_statuses:
@@ -229,7 +232,8 @@ def handle_daily_excel_export(req):
             'entrada': "-",
             'salida': "-",
             'horas': "-",
-            'notas': status_record.notes or "-"
+            'notas': status_record.notes or "-",
+            'admin_notes': status_record.admin_notes or "-"
         })
 
     consolidated_records.sort(key=lambda x: (x['user_id'], x['date']))
@@ -246,6 +250,7 @@ def handle_daily_excel_export(req):
         ws3.cell(row=row_num, column=8).value = rec['salida']
         ws3.cell(row=row_num, column=9).value = rec['horas']
         ws3.cell(row=row_num, column=10).value = rec['notas']
+        ws3.cell(row=row_num, column=11).value = rec['admin_notes']
         row_num += 1
 
     for col_num, _ in enumerate(header3, 1):
