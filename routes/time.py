@@ -731,7 +731,7 @@ def process_approved_requests():
             "Baja médica": "Baja",
             "Ausencia justificada": "Ausente",
             "Ausencia injustificada": "Ausente",
-            "Permiso especial": "Ausente"
+            "Permiso especial": "Vacaciones"
         }
 
         status = status_map.get(req.request_type, "Ausente")
@@ -749,6 +749,7 @@ def process_approved_requests():
                 # Actualizar si es diferente
                 if existing_status.status != status:
                     existing_status.status = status
+                    existing_status.request_type = req.request_type
                     existing_status.notes = f"Actualizado por solicitud aprobada: {req.request_type}"
             else:
                 # Crear nuevo status
@@ -757,6 +758,7 @@ def process_approved_requests():
                     user_id=req.user_id,
                     date=current_date,
                     status=status,
+                    request_type=req.request_type,
                     notes=f"Generado por solicitud aprobada: {req.request_type}"
                 )
                 db.session.add(new_status)

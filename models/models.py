@@ -187,6 +187,7 @@ class EmployeeStatus(db.Model):
         default=""
     )
     notes = db.Column(db.Text, nullable=True)
+    request_type = db.Column(db.String(50), nullable=True)  # Tipo de solicitud original (Vacaciones, Baja médica, etc.)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime,

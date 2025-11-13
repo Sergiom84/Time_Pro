@@ -18,6 +18,7 @@ admin_bp = Blueprint(
 # Listas estáticas (DEPRECADAS - usar funciones dinámicas en su lugar)
 CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
 DEFAULT_CATEGORIES = ["Coordinador", "Empleado", "Gestor"]
+CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
 def get_categorias_disponibles():
     """
@@ -58,6 +59,19 @@ def get_category_id_by_name(category_name):
 
     category = Category.query.filter_by(client_id=client_id, name=category_name).first()
     return category.id if category else None
+
+
+def parse_category_filter(value):
+    """Devuelve (category_id, filter_none_flag) a partir del nombre enviado en filtros."""
+    if not value or value in ("", "all"):
+        return None, False
+
+    normalized = value.strip().lower()
+    if normalized in CATEGORY_NONE_VALUES:
+        return None, True
+
+    category_id = get_category_id_by_name(value)
+    return category_id, False
 
 def get_centros_dinamicos():
     """
@@ -224,6 +238,7 @@ def dashboard():
     # Filtros opcionales
     filtro_centro = request.args.get("centro", type=str, default="")
     filtro_categoria = request.args.get("categoria", type=str, default="")
+    filtro_categoria_id, filtro_categoria_none = parse_category_filter(filtro_categoria)
 
     # Totales de usuarios (limitados por centro si aplica)
     # Empleados: usuarios sin rol admin
@@ -232,8 +247,10 @@ def dashboard():
         user_q = user_q.filter(User.centro == centro_admin)
     elif filtro_centro:
         user_q = user_q.filter(User.centro == filtro_centro)
-    if filtro_categoria:
-        user_q = user_q.filter(User.categoria == filtro_categoria)
+    if filtro_categoria_id:
+        user_q = user_q.filter(User.category_id == filtro_categoria_id)
+    elif filtro_categoria_none:
+        user_q = user_q.filter(User.category_id.is_(None))
     total_users = user_q.count()
 
     # Usuarios activos con fichaje abierto (limitados por centro si aplica)
@@ -248,8 +265,10 @@ def dashboard():
         active_q = active_q.filter(User.centro == centro_admin)
     elif filtro_centro:
         active_q = active_q.filter(User.centro == filtro_centro)
-    if filtro_categoria:
-        active_q = active_q.filter(User.categoria == filtro_categoria)
+    if filtro_categoria_id:
+        active_q = active_q.filter(User.category_id == filtro_categoria_id)
+    elif filtro_categoria_none:
+        active_q = active_q.filter(User.category_id.is_(None))
     active_users = active_q.distinct().count()
 
     today = date.today()
@@ -269,8 +288,10 @@ def dashboard():
         q = q.filter(User.centro == centro_admin)
     elif filtro_centro:
         q = q.filter(User.centro == filtro_centro)
-    if filtro_categoria:
-        q = q.filter(User.categoria == filtro_categoria)
+    if filtro_categoria_id:
+        q = q.filter(User.category_id == filtro_categoria_id)
+    elif filtro_categoria_none:
+        q = q.filter(User.category_id.is_(None))
 
     records = q.order_by(TimeRecord.date.asc(), TimeRecord.check_in.asc()).all()
 
@@ -1069,8 +1090,8 @@ def api_events():
     STATUS_GROUPS = {
         "Trabajado": ["Trabajado"],
         "Baja": ["Baja"],
-        "Ausente": ["Ausente", "Ausencia justificada", "Ausencia injustificada"],
-        "Vacaciones": ["Vacaciones", "Permiso especial"]
+        "Ausente": ["Ausente"],
+        "Vacaciones": ["Vacaciones"]
     }
     STATUS_ALIAS = {s: group for group, values in STATUS_GROUPS.items() for s in values}
 
@@ -1135,17 +1156,29 @@ def api_events():
         status_values = STATUS_GROUPS.get(status, [status])
         q = q.filter(EmployeeStatus.status.in_(status_values))
 
-    events = [
-        {
+    # Mapa de colores completo (incluye tipos de solicitud específicos)
+    color_map = {
+        "Trabajado" : "#60a5fa",                    # Azul
+        "Baja"      : "#f87171",                    # Rojo
+        "Baja médica": "#f87171",                   # Rojo (igual a Baja)
+        "Ausente"   : "#fbbf24",                    # Amarillo
+        "Vacaciones": "#34d399",                    # Verde claro
+        "Ausencia justificada": "#fbbf24",          # Amarillo (igual a Ausente)
+        "Ausencia injustificada": "#ef4444",        # Rojo oscuro
+        "Permiso especial": "#15803d"               # Verde oscuro
+    }
+
+    events = []
+    for es in q.all():
+        # Determinar color: si hay request_type, usarlo; si no, usar status
+        color_key = es.request_type if es.request_type else es.status
+        color = color_map.get(color_key, "#9ca3af")
+
+        events.append({
             "id"   : es.id,
             "title": f"{es.status} - {es.user.full_name or es.user.username}",
             "start": es.date.isoformat(),
-            "color": {
-                "Trabajado" : "#60a5fa",
-                "Baja"      : "#f87171",
-                "Ausente"   : "#fbbf24",
-                "Vacaciones": "#34d399"
-            }.get(STATUS_ALIAS.get(es.status, es.status), "#9ca3af"),
+            "color": color,
             "extendedProps": {
                 "notes": es.notes,
                 "username": es.user.full_name or es.user.username,
@@ -1153,9 +1186,7 @@ def api_events():
                 "filterStatus": STATUS_ALIAS.get(es.status, es.status)
             },
             "allDay": True
-        }
-        for es in q.all()
-    ]
+        })
     return jsonify(events)
 
 @admin_bp.route("/api/employees")
@@ -1360,6 +1391,12 @@ def leave_requests():
     # Obtener filtros de la URL
     filter_centro = request.args.get("centro", "all")
     filter_categoria = request.args.get("categoria", "all")
+    filter_categoria_id, filter_categoria_none = parse_category_filter(
+        filter_categoria if filter_categoria != "all" else ""
+    )
+    filter_categoria_id, filter_categoria_none = parse_category_filter(
+        filter_categoria if filter_categoria != "all" else ""
+    )
     filter_usuario = request.args.get("usuario", "")
 
     # Navegación por fechas
@@ -1383,8 +1420,10 @@ def leave_requests():
     elif filter_centro != "all":
         query = query.filter(User.centro == filter_centro)
 
-    if filter_categoria != "all":
-        query = query.filter(User.categoria == filter_categoria)
+    if filter_categoria_id:
+        query = query.filter(User.category_id == filter_categoria_id)
+    elif filter_categoria_none:
+        query = query.filter(User.category_id.is_(None))
 
     if filter_usuario:
         query = query.filter(
@@ -1423,8 +1462,10 @@ def leave_requests():
     elif filter_centro != "all":
         history_query = history_query.filter(User.centro == filter_centro)
 
-    if filter_categoria != "all":
-        history_query = history_query.filter(User.categoria == filter_categoria)
+    if filter_categoria_id:
+        history_query = history_query.filter(User.category_id == filter_categoria_id)
+    elif filter_categoria_none:
+        history_query = history_query.filter(User.category_id.is_(None))
 
     if filter_usuario:
         history_query = history_query.filter(
@@ -1505,7 +1546,7 @@ def approve_leave_request(request_id):
             "Baja médica": "Baja",
             "Ausencia justificada": "Ausente",
             "Ausencia injustificada": "Ausente",
-            "Permiso especial": "Ausente"
+            "Permiso especial": "Vacaciones"
         }
 
         status = status_map.get(leave_request.request_type, "Ausente")
@@ -1520,6 +1561,7 @@ def approve_leave_request(request_id):
 
             if existing_status:
                 existing_status.status = status
+                existing_status.request_type = leave_request.request_type
                 existing_status.notes = f"Solicitud aprobada: {leave_request.request_type}"
             else:
                 new_status = EmployeeStatus(
@@ -1527,6 +1569,7 @@ def approve_leave_request(request_id):
                     user_id=leave_request.user_id,
                     date=current_date,
                     status=status,
+                    request_type=leave_request.request_type,
                     notes=f"Solicitud aprobada: {leave_request.request_type}"
                 )
                 db.session.add(new_status)
@@ -1637,8 +1680,10 @@ def work_pauses():
     elif filter_centro != "all" and filter_centro:
         query = query.filter(User.centro == filter_centro)
 
-    if filter_categoria != "all" and filter_categoria:
-        query = query.filter(User.categoria == filter_categoria)
+    if filter_categoria_id:
+        query = query.filter(User.category_id == filter_categoria_id)
+    elif filter_categoria_none:
+        query = query.filter(User.category_id.is_(None))
 
     if filter_usuario:
         like = f"%{filter_usuario}%"
