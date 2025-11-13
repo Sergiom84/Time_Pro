@@ -19,6 +19,7 @@ STATUS_GROUPS = {
     "Ausente": ["Ausente", "Ausencia justificada", "Ausencia injustificada"],
     "Vacaciones": ["Vacaciones", "Permiso especial"]
 }
+CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
 
 def expand_status_filters(filters):
@@ -34,6 +35,35 @@ def expand_status_filters(filters):
             seen.add(status)
             ordered_unique.append(status)
     return ordered_unique
+
+
+def resolve_category_filter(value):
+    """Devuelve (category_id, filter_none_flag) para un nombre recibido en formularios."""
+    if not value or value in ("", "all"):
+        return None, False
+
+    normalized = value.strip().lower()
+    if normalized in CATEGORY_NONE_VALUES:
+        return None, True
+
+    client_id = session.get("client_id")
+    if not client_id:
+        return None, False
+
+    category = Category.query.filter_by(client_id=client_id, name=value).first()
+    return (category.id if category else None), False
+
+
+def get_user_category_label(user, default="-"):
+    """Obtiene el nombre legible de la categoría del usuario."""
+    if not user:
+        return default
+    if getattr(user, "category", None):
+        return user.category.name
+    legacy = getattr(user, "categoria", None)
+    if legacy:
+        return legacy
+    return default
 
 # Decorator to check if user is admin
 def admin_required(f):
@@ -112,7 +142,7 @@ def handle_daily_excel_export(req):
 
             ws1.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
             ws1.cell(row=row_num, column=2).value = user.full_name if user else "-"
-            ws1.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+            ws1.cell(row=row_num, column=3).value = get_user_category_label(user)
             ws1.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
             ws1.cell(row=row_num, column=5).value = record.date.strftime("%d/%m/%Y")
             ws1.cell(row=row_num, column=6).value = record.check_in.strftime("%H:%M:%S") if record.check_in else "-"
@@ -143,7 +173,7 @@ def handle_daily_excel_export(req):
             user = User.query.get(status_record.user_id)
             ws2.cell(row=row_num, column=1).value = user.username if user else f"ID: {status_record.user_id}"
             ws2.cell(row=row_num, column=2).value = user.full_name if user else "-"
-            ws2.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+            ws2.cell(row=row_num, column=3).value = get_user_category_label(user)
             ws2.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
             ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
             ws2.cell(row=row_num, column=6).value = status_record.status
@@ -176,7 +206,7 @@ def handle_daily_excel_export(req):
             'user_id': record.user_id,
             'username': user.username if user else f"ID: {record.user_id}",
             'full_name': user.full_name if user else "-",
-            'categoria': user.categoria if user and user.categoria else "-",
+            'categoria': get_user_category_label(user),
             'centro': user.centro if user and user.centro else "-",
             'date': record.date,
             'estado': "Trabajado",
@@ -192,7 +222,7 @@ def handle_daily_excel_export(req):
             'user_id': status_record.user_id,
             'username': user.username if user else f"ID: {status_record.user_id}",
             'full_name': user.full_name if user else "-",
-            'categoria': user.categoria if user and user.categoria else "-",
+            'categoria': get_user_category_label(user),
             'centro': user.centro if user and user.centro else "-",
             'date': status_record.date,
             'estado': status_record.status,
@@ -301,7 +331,7 @@ def handle_daily_pdf_export(req):
 
             pdf.cell(col_widths[0], 6, user.username if user else f"ID:{record.user_id}", border=1)
             pdf.cell(col_widths[1], 6, (user.full_name if user else "-")[:20], border=1)
-            pdf.cell(col_widths[2], 6, user.categoria if user and user.categoria else "-", border=1)
+            pdf.cell(col_widths[2], 6, get_user_category_label(user), border=1)
             pdf.cell(col_widths[3], 6, (user.centro if user and user.centro else "-")[:15], border=1)
             pdf.cell(col_widths[4], 6, record.check_in.strftime("%H:%M") if record.check_in else "-", border=1, align="C")
             pdf.cell(col_widths[5], 6, record.check_out.strftime("%H:%M") if record.check_out else "-", border=1, align="C")
@@ -329,7 +359,7 @@ def handle_daily_pdf_export(req):
 
             pdf.cell(col_widths2[0], 6, user.username if user else f"ID:{status_record.user_id}", border=1)
             pdf.cell(col_widths2[1], 6, (user.full_name if user else "-")[:25], border=1)
-            pdf.cell(col_widths2[2], 6, user.categoria if user and user.categoria else "-", border=1)
+            pdf.cell(col_widths2[2], 6, get_user_category_label(user), border=1)
             pdf.cell(col_widths2[3], 6, (user.centro if user and user.centro else "-")[:20], border=1)
             pdf.cell(col_widths2[4], 6, status_record.status, border=1, align="C")
             pdf.cell(col_widths2[5], 6, (status_record.notes or "")[:40], border=1)
@@ -409,6 +439,8 @@ def export_excel():
             categoria = request.form.get("categoria")
             weekly_hours = request.form.get("weekly_hours") or request.form.get("jornada")
 
+        categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
+
         start_date = request.form.get("start_date")
         end_date = request.form.get("end_date")
 
@@ -434,6 +466,8 @@ def export_excel():
         if not status_filters:
             status_filters = ['Trabajado']  # Default solo trabajado
 
+        categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
+
         print('Valores usados para filtrar:')
         print('centro:', centro)
         print('user_id:', user_id)
@@ -455,8 +489,10 @@ def export_excel():
                 query = query.filter(User.centro == centro)
             if user_id:
                 query = query.filter(TimeRecord.user_id == user_id)
-            if categoria:
-                query = query.filter(User.categoria == categoria)
+            if categoria_id_filter:
+                query = query.filter(User.category_id == categoria_id_filter)
+            elif categoria_none_filter:
+                query = query.filter(User.category_id.is_(None))
             if weekly_hours:
                 try:
                     wh = int(weekly_hours)
@@ -483,8 +519,10 @@ def export_excel():
                 status_query = status_query.filter(User.centro == centro)
             if user_id:
                 status_query = status_query.filter(EmployeeStatus.user_id == user_id)
-            if categoria:
-                status_query = status_query.filter(User.categoria == categoria)
+            if categoria_id_filter:
+                status_query = status_query.filter(User.category_id == categoria_id_filter)
+            elif categoria_none_filter:
+                status_query = status_query.filter(User.category_id.is_(None))
             if weekly_hours:
                 try:
                     wh = int(weekly_hours)
@@ -531,7 +569,7 @@ def export_excel():
 
                 ws1.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
                 ws1.cell(row=row_num, column=2).value = user.full_name if user else "-"
-                ws1.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+                ws1.cell(row=row_num, column=3).value = get_user_category_label(user)
                 ws1.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
                 ws1.cell(row=row_num, column=5).value = record.date.strftime("%d/%m/%Y")
                 ws1.cell(row=row_num, column=6).value = record.check_in.strftime("%H:%M:%S") if record.check_in else "-"
@@ -567,7 +605,7 @@ def export_excel():
 
                 ws2.cell(row=row_num, column=1).value = user.username if user else f"ID: {status_record.user_id}"
                 ws2.cell(row=row_num, column=2).value = user.full_name if user else "-"
-                ws2.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+                ws2.cell(row=row_num, column=3).value = get_user_category_label(user)
                 ws2.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
                 ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
                 ws2.cell(row=row_num, column=6).value = status_record.status
@@ -605,7 +643,7 @@ def export_excel():
                 'user_id': record.user_id,
                 'username': user.username if user else f"ID: {record.user_id}",
                 'full_name': user.full_name if user else "-",
-                'categoria': user.categoria if user and user.categoria else "-",
+                'categoria': get_user_category_label(user),
                 'centro': user.centro if user and user.centro else "-",
                 'date': record.date,
                 'estado': "Trabajado",
@@ -622,7 +660,7 @@ def export_excel():
                 'user_id': status_record.user_id,
                 'username': user.username if user else f"ID: {status_record.user_id}",
                 'full_name': user.full_name if user else "-",
-                'categoria': user.categoria if user and user.categoria else "-",
+                'categoria': get_user_category_label(user),
                 'centro': user.centro if user and user.centro else "-",
                 'date': status_record.date,
                 'estado': status_record.status,
@@ -756,8 +794,10 @@ def export_excel_monthly():
                 query = query.filter(User.centro == centro)
             if user_id:
                 query = query.filter(TimeRecord.user_id == user_id)
-            if categoria:
-                query = query.filter(User.categoria == categoria)
+            if categoria_id_filter:
+                query = query.filter(User.category_id == categoria_id_filter)
+            elif categoria_none_filter:
+                query = query.filter(User.category_id.is_(None))
             if weekly_hours:
                 try:
                     wh = int(weekly_hours)
@@ -783,8 +823,10 @@ def export_excel_monthly():
                 status_query = status_query.filter(User.centro == centro)
             if user_id:
                 status_query = status_query.filter(EmployeeStatus.user_id == user_id)
-            if categoria:
-                status_query = status_query.filter(User.categoria == categoria)
+            if categoria_id_filter:
+                status_query = status_query.filter(User.category_id == categoria_id_filter)
+            elif categoria_none_filter:
+                status_query = status_query.filter(User.category_id.is_(None))
             if weekly_hours:
                 try:
                     wh = int(weekly_hours)
@@ -912,7 +954,7 @@ def export_excel_monthly():
                         ws1.cell(row=row_num, column=2).value = user.full_name if user else "-"
                         ws1.cell(row=row_num, column=2).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+                        ws1.cell(row=row_num, column=3).value = get_user_category_label(user)
                         ws1.cell(row=row_num, column=3).alignment = Alignment(horizontal='center')
 
                         ws1.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
@@ -970,7 +1012,7 @@ def export_excel_monthly():
                 user = User.query.get(status_record.user_id)
                 ws2.cell(row=row_num, column=1).value = user.username if user else f"ID: {status_record.user_id}"
                 ws2.cell(row=row_num, column=2).value = user.full_name if user else "-"
-                ws2.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+                ws2.cell(row=row_num, column=3).value = get_user_category_label(user)
                 ws2.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
                 ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
                 ws2.cell(row=row_num, column=6).value = status_record.status
@@ -1003,7 +1045,7 @@ def export_excel_monthly():
                 'user_id': record.user_id,
                 'username': user.username if user else f"ID: {record.user_id}",
                 'full_name': user.full_name if user else "-",
-                'categoria': user.categoria if user and user.categoria else "-",
+                'categoria': get_user_category_label(user),
                 'centro': user.centro if user and user.centro else "-",
                 'date': record.date,
                 'estado': "Trabajado",
@@ -1019,7 +1061,7 @@ def export_excel_monthly():
                 'user_id': status_record.user_id,
                 'username': user.username if user else f"ID: {status_record.user_id}",
                 'full_name': user.full_name if user else "-",
-                'categoria': user.categoria if user and user.categoria else "-",
+                'categoria': get_user_category_label(user),
                 'centro': user.centro if user and user.centro else "-",
                 'date': status_record.date,
                 'estado': status_record.status,
@@ -1120,7 +1162,7 @@ def export_excel_daily():
 
         ws.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
         ws.cell(row=row_num, column=2).value = user.full_name if user else "-"
-        ws.cell(row=row_num, column=3).value = user.categoria if user and user.categoria else "-"
+        ws.cell(row=row_num, column=3).value = get_user_category_label(user)
         ws.cell(row=row_num, column=4).value = user.centro if user and user.centro else "-"
         ws.cell(row=row_num, column=5).value = record.date.strftime("%d/%m/%Y")
         ws.cell(row=row_num, column=6).value = record.check_in.strftime("%H:%M:%S") if record.check_in else "-"
@@ -1189,7 +1231,7 @@ def export_pdf_daily():
         row = [
             user.username if user else f"ID: {record.user_id}",
             user.full_name if user else "-",
-            user.categoria if user and user.categoria else "-",
+            get_user_category_label(user),
             user.centro if user and user.centro else "-",
             record.check_in.strftime("%H:%M:%S") if record.check_in else "-",
             record.check_out.strftime("%H:%M:%S") if record.check_out else "-",
