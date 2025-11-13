@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
 from functools import wraps
-from models.models import User, TimeRecord, EmployeeStatus
+from models.models import User, TimeRecord, EmployeeStatus, Center, Category
 from models.database import db
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta, date
@@ -13,6 +13,28 @@ from collections import defaultdict
 
 export_bp = Blueprint("export", __name__, template_folder="../templates")
 
+STATUS_GROUPS = {
+    "Trabajado": ["Trabajado"],
+    "Baja": ["Baja"],
+    "Ausente": ["Ausente", "Ausencia justificada", "Ausencia injustificada"],
+    "Vacaciones": ["Vacaciones", "Permiso especial"]
+}
+
+
+def expand_status_filters(filters):
+    """Expande filtros de estado generales a sus valores específicos."""
+    expanded = []
+    for status in filters:
+        expanded.extend(STATUS_GROUPS.get(status, [status]))
+    # Mantener orden y evitar duplicados
+    seen = set()
+    ordered_unique = []
+    for status in expanded:
+        if status not in seen:
+            seen.add(status)
+            ordered_unique.append(status)
+    return ordered_unique
+
 # Decorator to check if user is admin
 def admin_required(f):
     @wraps(f)
@@ -21,7 +43,7 @@ def admin_required(f):
             flash("Acceso no autorizado. Se requieren permisos de administrador.", "danger")
             return redirect(url_for("auth.login"))
         user = User.query.get(session.get("user_id"))
-        if not user or not user.is_admin:
+        if not user or not user.role:
             session.clear()
             flash("Tu cuenta ya no tiene permisos de administrador.", "danger")
             return redirect(url_for("auth.login"))
@@ -53,7 +75,7 @@ def handle_daily_excel_export(req):
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
-    selected_statuses = [s for s in status_filters if s != 'Trabajado']
+    selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
@@ -237,7 +259,7 @@ def handle_daily_pdf_export(req):
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
-    selected_statuses = [s for s in status_filters if s != 'Trabajado']
+    selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
@@ -448,7 +470,7 @@ def export_excel():
 
         # ========== OBTENER REGISTROS DE EMPLOYEESTATUS (Baja, Ausente, Vacaciones) ==========
         employee_statuses = []
-        selected_statuses = [s for s in status_filters if s != 'Trabajado']
+        selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
         if selected_statuses:
             status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
                 EmployeeStatus.status.in_(selected_statuses),
@@ -646,7 +668,7 @@ def export_excel():
         )
 
     # GET
-    from routes.admin import get_admin_centro
+    from routes.admin import get_admin_centro, get_centros_dinamicos, get_categorias_disponibles
     centro_admin = get_admin_centro()
     q = User.query.filter_by(is_active=True)
     if centro_admin:
@@ -656,8 +678,12 @@ def export_excel():
     # Calcular lista de horas únicas y ordenadas ascendentemente para el desplegable "horas4"
     horas_sorted = sorted({u.weekly_hours for u in users if u.weekly_hours is not None})
 
+    # Obtener centros y categorías dinámicos
+    centros = get_centros_dinamicos()
+    categorias = get_categorias_disponibles()
+
     today = date.today().strftime('%Y-%m-%d')
-    return render_template("export_excel.html", users=users, today=today, centro_admin=centro_admin, horas_sorted=horas_sorted)
+    return render_template("export_excel.html", users=users, today=today, centro_admin=centro_admin, horas_sorted=horas_sorted, centros=centros, categorias=categorias)
 
 # ========== EXCEL MENSUAL CON SUMAS SEMANALES ==========
 
@@ -745,7 +771,7 @@ def export_excel_monthly():
 
         # Consultar EmployeeStatus si otros estados están seleccionados
         employee_statuses = []
-        selected_statuses = [s for s in status_filters if s != 'Trabajado']
+        selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
         if selected_statuses:
             status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
                 EmployeeStatus.status.in_(selected_statuses),
@@ -1041,15 +1067,20 @@ def export_excel_monthly():
         )
 
     # GET - usar el mismo template
-    from routes.admin import get_admin_centro
+    from routes.admin import get_admin_centro, get_centros_dinamicos, get_categorias_disponibles
     centro_admin = get_admin_centro()
     q = User.query.filter_by(is_active=True)
     if centro_admin:
         q = q.filter(User.centro == centro_admin)
     users = q.order_by(User.username).all()
     horas_sorted = sorted({u.weekly_hours for u in users if u.weekly_hours is not None})
+
+    # Obtener centros y categorías dinámicos
+    centros = get_centros_dinamicos()
+    categorias = get_categorias_disponibles()
+
     today = date.today().strftime('%Y-%m-%d')
-    return render_template("export_excel.html", users=users, today=today, centro_admin=centro_admin, horas_sorted=horas_sorted)
+    return render_template("export_excel.html", users=users, today=today, centro_admin=centro_admin, horas_sorted=horas_sorted, centros=centros, categorias=categorias)
 
 # ========== EXCEL DIARIO ==========
 

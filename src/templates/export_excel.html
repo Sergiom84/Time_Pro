@@ -200,9 +200,9 @@
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
                     {% else %}
                         <option value="">Todos</option>
-                        <option value="Centro 1">Centro 1</option>
-                        <option value="Centro 2">Centro 2</option>
-                        <option value="Centro 3">Centro 3</option>
+                        {% for centro in centros %}
+                        <option value="{{ centro }}">{{ centro }}</option>
+                        {% endfor %}
                     {% endif %}
                 </select>
             </div>
@@ -238,9 +238,9 @@
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
                     {% else %}
                         <option value="">Todos</option>
-                        <option value="Centro 1">Centro 1</option>
-                        <option value="Centro 2">Centro 2</option>
-                        <option value="Centro 3">Centro 3</option>
+                        {% for centro in centros %}
+                        <option value="{{ centro }}">{{ centro }}</option>
+                        {% endfor %}
                     {% endif %}
                 </select>
             </div>
@@ -248,9 +248,9 @@
                 <label for="categoria2" class="block text-gray-400 text-sm font-bold mb-2">Categoría</label>
                 <select id="categoria2" name="categoria2" class="shadow appearance-none border border-gray-700 rounded w-full py-2 px-3 bg-gray-800 text-gray-300">
                     <option value="">Todas</option>
-                    <option value="Coordinador">Coordinador</option>
-                    <option value="Empleado">Empleado</option>
-                    <option value="Gestor">Gestor</option>
+                    {% for categoria in categorias %}
+                    <option value="{{ categoria }}">{{ categoria }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-span-4 text-center">
@@ -273,9 +273,9 @@
                         <option value="{{ centro_admin }}" selected>{{ centro_admin }}</option>
                     {% else %}
                         <option value="">Todos</option>
-                        <option value="Centro 1">Centro 1</option>
-                        <option value="Centro 2">Centro 2</option>
-                        <option value="Centro 3">Centro 3</option>
+                        {% for centro in centros %}
+                        <option value="{{ centro }}">{{ centro }}</option>
+                        {% endfor %}
                     {% endif %}
                 </select>
             </div>

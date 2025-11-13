@@ -14,8 +14,9 @@
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
       <div class="flex items-center gap-6">
         <!-- Logo círculo con borde turquesa -->
-        <div class="w-20 h-20 rounded-full border-4 bg-gray-300 flex items-center justify-center" style="border-color: var(--accent-primary);">
-          <span class="text-gray-500 text-sm font-medium">Logo</span>
+        <div class="w-20 h-20 rounded-full border-4 bg-gray-300 flex items-center justify-center overflow-hidden" style="border-color: var(--accent-primary);">
+          <img id="clientLogo" src="" alt="Logo" class="w-full h-full object-cover hidden">
+          <span id="logoPlaceholder" class="text-gray-500 text-sm font-medium">Logo</span>
         </div>
         <div>
           <h1 class="text-2xl sm:text-4xl font-bold" style="color: var(--accent-primary);">
@@ -75,7 +76,7 @@
           <p class="font-semibold">Sesión de fichaje activa</p>
         </div>
         <div class="space-y-3" style="color: var(--text-primary);">
-          <p><strong style="color: var(--accent-primary);">Centro:</strong> {{ user.centro or '-' }}</p>
+          <p><strong style="color: var(--accent-primary);">Centro:</strong> {{ user.center.name if user.center else '-' }}</p>
           <p><strong style="color: var(--accent-primary);">Entrada:</strong> {{ today_record.check_in.strftime("%d-%m-%Y %H:%M:%S") }}</p>
           <p><strong style="color: var(--accent-primary);">Salida:</strong> <span style="color: var(--text-secondary);">Pendiente</span></p>
 
@@ -341,7 +342,8 @@
 
       <!-- Tab: Mis Solicitudes -->
       <div id="myRequestsContent" class="hidden">
-        <div id="requestsList" class="space-y-3">
+        <!-- Limitar altura del listado y habilitar scroll interno -->
+        <div id="requestsList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
           <!-- Las solicitudes se cargarán dinámicamente aquí -->
         </div>
       </div>
@@ -517,10 +519,44 @@
       document.getElementById('clearPauseFile').classList.add('hidden');
     }
 
+    // ========== CARGAR LOGO DEL CLIENTE ==========
+    async function loadClientLogo() {
+      try {
+        const response = await fetch('/auth/api/current-client', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (data.logo_url) {
+          const logoImg = document.getElementById('clientLogo');
+          const logoPlaceholder = document.getElementById('logoPlaceholder');
+
+          logoImg.src = data.logo_url;
+          logoImg.onerror = () => {
+            // Si la imagen no carga, mostrar placeholder
+            logoImg.classList.add('hidden');
+            logoPlaceholder.classList.remove('hidden');
+          };
+          logoImg.onload = () => {
+            // Si la imagen carga exitosamente, mostrarla y ocultar placeholder
+            logoImg.classList.remove('hidden');
+            logoPlaceholder.classList.add('hidden');
+          };
+        }
+      } catch (error) {
+        console.error('Error al cargar logo del cliente:', error);
+      }
+    }
+
+    // Cargar logo al inicializar
+    loadClientLogo();
+
     // Verificar si hay una pausa activa
     async function checkActivePause() {
       try {
-        const response = await fetch('/time/pause/active');
+        const response = await fetch('/time/pause/active', {
+          credentials: 'include'
+        });
         const data = await response.json();
 
         if (data.active_pause) {
@@ -629,12 +665,14 @@
 
           response = await fetch('/time/pause/start', {
             method: 'POST',
+            credentials: 'include',
             body: formData // No incluir Content-Type header, fetch lo hará automáticamente
           });
         } else {
           // Enviar como JSON cuando no hay archivo
           response = await fetch('/time/pause/start', {
             method: 'POST',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -671,6 +709,7 @@
       try {
         const response = await fetch(`/time/pause/end/${currentPauseId}`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           }
@@ -761,7 +800,9 @@
     // Cargar solicitudes del empleado
     async function loadMyRequests() {
       try {
-        const response = await fetch('/time/requests/my');
+        const response = await fetch('/time/requests/my', {
+          credentials: 'include'
+        });
         const data = await response.json();
 
         const requestsList = document.getElementById('requestsList');
@@ -845,6 +886,7 @@
       try {
         const response = await fetch(`/time/requests/cancel/${requestId}`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           }
@@ -885,6 +927,7 @@
 
           response = await fetch('/time/requests/new', {
             method: 'POST',
+            credentials: 'include',
             body: formData
           });
         } else {
@@ -898,6 +941,7 @@
 
           response = await fetch('/time/requests/new', {
             method: 'POST',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -980,7 +1024,9 @@
     // Cargar preferencias actuales
     async function loadPreferences() {
       try {
-        const response = await fetch('/notifications/preferences');
+        const response = await fetch('/notifications/preferences', {
+          credentials: 'include'
+        });
         const data = await response.json();
 
         enableNotifications.checked = data.email_notifications;
@@ -1028,6 +1074,7 @@
       try {
         const response = await fetch('/notifications/preferences', {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },

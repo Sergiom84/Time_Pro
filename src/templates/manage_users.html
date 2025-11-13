@@ -77,12 +77,12 @@
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.username }}</td>
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.full_name }}</td>
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.email }}</td>
-                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ 'Sí' if user.is_admin else 'No' }}</td>
+                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.role or '-' }}</td>
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ 'Sí' if user.is_active else 'No' }}</td>
                   <td class="px-3 py-2 whitespace-nowrap text-center text-gray-100">{{ user.weekly_hours }}</td>
-                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.categoria or '-'}}</td>
+                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.category.name if user.category else '-'}}</td>
                   {% if plan_config.show_center_selector %}
-                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.centro or '-'}}</td>
+                  <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.center.name if user.center else '-'}}</td>
                   {% endif %}
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.hire_date.strftime('%d/%m/%Y') if user.hire_date else '-' }}</td>
                   <td class="px-3 py-2 whitespace-nowrap text-gray-100">{{ user.termination_date.strftime('%d/%m/%Y') if user.termination_date else '-' }}</td>

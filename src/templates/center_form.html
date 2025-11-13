@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {{ 'Agregar' if action == 'add' else 'Editar' }} Centro - TimeTracker
+{% endblock %}
+
+{% block header %}
+    <span class="text-timetracker-primary">{{ 'Agregar Nuevo' if action == 'add' else 'Editar' }} Centro</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-gray-900 border border-gray-700 rounded-lg shadow-md p-8">
+    <form method="POST"
+          action="{{ url_for('admin.add_center') if action == 'add' else url_for('admin.edit_center', center_id=center.id) }}">
+
+        <!-- Nombre del centro -->
+        <div class="mb-4">
+            <label for="name" class="block text-sm font-medium text-gray-300 mb-1">
+                Nombre del centro
+            </label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   required
+                   value="{{ center.name if center else '' }}"
+                   placeholder="Ej: Centro 1, Aluminios Lara, La esquina del paisa, etc."
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Estado Activo -->
+        <div class="mb-6 flex items-center">
+            <input type="checkbox"
+                   id="is_active"
+                   name="is_active"
+                   {% if not center or center.is_active %}checked{% endif %}
+                   class="h-4 w-4 text-timetracker-primary bg-gray-700 border-gray-600 rounded focus:ring-timetracker-primary focus:ring-2">
+            <label for="is_active" class="ml-2 block text-sm text-gray-300">
+                Centro Activo (disponible para asignación)
+            </label>
+        </div>
+
+        <!-- Información -->
+        {% if action == 'edit' and center.users|length > 0 %}
+        <div class="mb-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+            <p class="text-sm text-blue-300">
+                Este centro está siendo utilizado por <strong>{{ center.users|length }}</strong> usuario(s).
+                Cambios aquí afectarán a todos ellos.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Botones -->
+        <div class="flex flex-wrap gap-3 justify-end">
+            <a href="{{ url_for('admin.manage_centers') }}"
+               class="py-2 px-4 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="py-2 px-4 rounded-lg bg-timetracker-primary text-white hover:opacity-90 shadow-md">
+                {{ 'Crear Centro' if action=='add' else 'Guardar Cambios' }}
+            </button>
+            {% if action=='edit' %}
+            <form method="POST"
+                  action="{{ url_for('admin.delete_center', center_id=center.id) }}"
+                  onsubmit="return confirm('¿Estás seguro de eliminar este centro?');">
+                <button type="submit"
+                        class="py-2 px-4 rounded-lg bg-red-700 text-white hover:bg-red-800 shadow-md"
+                        {% if center.users|length > 0 %}disabled title="No puedes eliminar un centro con usuarios"{% endif %}>
+                    Eliminar Centro
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

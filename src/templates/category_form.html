@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {{ 'Agregar' if action == 'add' else 'Editar' }} Categoría - TimeTracker
+{% endblock %}
+
+{% block header %}
+    <span class="text-timetracker-primary">{{ 'Agregar Nueva' if action == 'add' else 'Editar' }} Categoría</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-gray-900 border border-gray-700 rounded-lg shadow-md p-8">
+    <form method="POST"
+          action="{{ url_for('admin.add_category') if action == 'add' else url_for('admin.edit_category', category_id=category.id) }}">
+
+        <!-- Nombre de la categoría -->
+        <div class="mb-4">
+            <label for="name" class="block text-sm font-medium text-gray-300 mb-1">
+                Nombre de la categoría
+            </label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   required
+                   value="{{ category.name if category else '' }}"
+                   placeholder="Ej: Gestor, Empleado, Coordinador, etc."
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Descripción (opcional) -->
+        <div class="mb-6">
+            <label for="description" class="block text-sm font-medium text-gray-300 mb-1">
+                Descripción (opcional)
+            </label>
+            <textarea
+                id="description"
+                name="description"
+                rows="3"
+                placeholder="Describe qué hace esta categoría..."
+                class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">{{ category.description if category else '' }}</textarea>
+        </div>
+
+        <!-- Información -->
+        {% if action == 'edit' and category.users|length > 0 %}
+        <div class="mb-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+            <p class="text-sm text-blue-300">
+                Esta categoría es utilizada por <strong>{{ category.users|length }}</strong> usuario(s).
+                Cambios aquí afectarán a todos ellos.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Botones -->
+        <div class="flex flex-wrap gap-3 justify-end">
+            <a href="{{ url_for('admin.manage_categories') }}"
+               class="py-2 px-4 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="py-2 px-4 rounded-lg bg-timetracker-primary text-white hover:opacity-90 shadow-md">
+                {{ 'Crear Categoría' if action=='add' else 'Guardar Cambios' }}
+            </button>
+            {% if action=='edit' %}
+            <form method="POST"
+                  action="{{ url_for('admin.delete_category', category_id=category.id) }}"
+                  onsubmit="return confirm('¿Estás seguro de eliminar esta categoría?');">
+                <button type="submit"
+                        class="py-2 px-4 rounded-lg bg-red-700 text-white hover:bg-red-800 shadow-md"
+                        {% if category.users|length > 0 %}disabled title="No puedes eliminar una categoría con usuarios"{% endif %}>
+                    Eliminar Categoría
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

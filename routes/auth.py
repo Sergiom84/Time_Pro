@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import check_password_hash
 from models.models import User, Client
 from models.database import db
@@ -49,15 +49,15 @@ def login():
 
         if user and user.check_password(password):
             session["user_id"] = user.id
-            session["is_admin"] = user.is_admin
+            session["is_admin"] = user.role is not None  # True si tiene algún rol (admin o super_admin)
             session["client_id"] = user.client_id  # Multi-tenant: guardar client_id
             # Guardar el centro del admin si está asignado
-            if user.is_admin and user.centro and user.centro != "-- Sin categoría --":
+            if user.role and user.centro and user.centro != "-- Sin categoría --":
                 session["admin_centro"] = user.centro
             else:
                 session["admin_centro"] = None
             # No mostramos flash de "Inicio de sesión exitoso" para evitar mensajes residuales
-            if user.is_admin:
+            if user.role:  # Si tiene algún rol (admin o super_admin)
                 return redirect(url_for("admin.dashboard"))
             else:
                 # Ahora apuntamos directamente al dashboard de time.py
@@ -134,6 +134,32 @@ def register():
 
     return render_template("register.html")
 
+# ================================================================
+#  API: Obtener información del cliente actual
+# ================================================================
+@auth_bp.route("/api/current-client", methods=["GET"])
+def get_current_client():
+    """Retorna la información del cliente actual (incluyendo logo)"""
+    if "client_id" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+
+    client_id = session.get("client_id")
+    client = Client.query.get(client_id)
+
+    if not client:
+        return jsonify({"error": "Cliente no encontrado"}), 404
+
+    return jsonify({
+        "id": client.id,
+        "name": client.name,
+        "slug": client.slug,
+        "plan": client.plan,
+        "logo_url": client.logo_url,
+        "primary_color": client.primary_color,
+        "secondary_color": client.secondary_color,
+        "is_active": client.is_active
+    })
+
 from functools import wraps
 from flask import session, redirect, url_for, flash
 from models.models import User  # agrega si no existe
@@ -146,7 +172,7 @@ def admin_required(f):
             return redirect(url_for("auth.login"))
         # Check if user still exists and is admin in DB for extra seguridad
         user = User.query.get(session.get("user_id"))
-        if not user or not user.is_admin:
+        if not user or not user.role:
             session.clear()
             flash("Tu cuenta ya no tiene permisos de administrador.", "danger")
             return redirect(url_for("auth.login"))

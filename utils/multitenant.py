@@ -201,56 +201,6 @@ def setup_multitenant_filters(app, db):
     """
     from sqlalchemy import event, inspect
     from sqlalchemy.orm import Query
-
-    # Modelos que tienen client_id y deben ser filtrados automáticamente
-    TENANT_MODELS = ['User', 'TimeRecord', 'EmployeeStatus', 'WorkPause', 'LeaveRequest', 'SystemConfig']
-
-    @event.listens_for(Query, "before_compile", retval=True)
-    def before_compile(query):
-        """
-        Intercepta queries antes de compilarlas para agregar filtro de client_id.
-        Solo aplica si hay un client_id en la sesión.
-        """
-        # Solo filtrar si hay un cliente en la sesión
-        try:
-            client_id = get_current_client_id()
-            if not client_id:
-                return query
-        except RuntimeError:
-            # No hay contexto de petición (ej: scripts, shell)
-            # No aplicar filtro
-            return query
-
-        # Verificar si ya tiene un filtro de client_id
-        # (para evitar duplicados)
-        if hasattr(query, '_tenant_filtered'):
-            return query
-
-        # Verificar si la query ya tiene LIMIT o OFFSET
-        # Si es así, NO aplicar filtro para evitar error de SQLAlchemy
-        try:
-            if hasattr(query, '_limit') and (query._limit is not None or query._offset is not None):
-                return query
-        except (AttributeError, TypeError):
-            # En algunas versiones de SQLAlchemy estos atributos no existen
-            # Continuar sin esta verificación
-            pass
-
-        # Iterar sobre las entidades en el query
-        for ent in query.column_descriptions:
-            entity = ent['entity']
-            if entity is None:
-                continue
-
-            # Verificar si el modelo tiene client_id
-            model_name = entity.__name__ if hasattr(entity, '__name__') else None
-            if model_name in TENANT_MODELS:
-                # Verificar que la columna client_id existe
-                if hasattr(entity, 'client_id'):
-                    # Agregar filtro automático
-                    query = query.filter(entity.client_id == client_id)
-                    query._tenant_filtered = True
-
-        return query
-
-    app.logger.info("Multi-tenant automatic filtering configured")
+    # El filtro multitenant se aplica ahora en la clase TenantAwareQuery en models/database.py
+    # Esto permite aplicar el filtro ANTES de limit(), evitando el error de SQLAlchemy
+    app.logger.info("Multi-tenant filtering configured via TenantAwareQuery")
