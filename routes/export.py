@@ -318,8 +318,8 @@ def handle_daily_pdf_export(req):
         pdf.cell(0, 8, "Registros de Fichaje", ln=1)
 
         pdf.set_font("Arial", "B", 9)
-        header = ["Usuario", "Nombre", "Categoria", "Centro", "Entrada", "Salida", "Horas", "Notas"]
-        col_widths = [28, 35, 22, 28, 20, 20, 18, 50]
+        header = ["Usuario", "Nombre", "Categoria", "Centro", "Entrada", "Salida", "Horas", "Notas", "Notas Admin"]
+        col_widths = [25, 30, 20, 25, 18, 18, 15, 40, 40]
 
         for i, col_name in enumerate(header):
             pdf.cell(col_widths[i], 7, col_name, border=1, align="C")
@@ -341,7 +341,8 @@ def handle_daily_pdf_export(req):
             pdf.cell(col_widths[4], 6, record.check_in.strftime("%H:%M") if record.check_in else "-", border=1, align="C")
             pdf.cell(col_widths[5], 6, record.check_out.strftime("%H:%M") if record.check_out else "-", border=1, align="C")
             pdf.cell(col_widths[6], 6, hours_worked, border=1, align="C")
-            pdf.cell(col_widths[7], 6, (record.notes or "")[:30], border=1)
+            pdf.cell(col_widths[7], 6, (record.notes or "")[:25], border=1)
+            pdf.cell(col_widths[8], 6, (record.admin_notes or "")[:25], border=1)
             pdf.ln()
 
     # Sección 2: Bajas y Ausencias (si hay)
@@ -351,8 +352,8 @@ def handle_daily_pdf_export(req):
         pdf.cell(0, 8, "Bajas y Ausencias", ln=1)
 
         pdf.set_font("Arial", "B", 9)
-        header2 = ["Usuario", "Nombre", "Categoria", "Centro", "Estado", "Notas"]
-        col_widths2 = [35, 45, 28, 35, 35, 70]
+        header2 = ["Usuario", "Nombre", "Categoria", "Centro", "Estado", "Notas", "Notas Admin"]
+        col_widths2 = [30, 38, 25, 30, 30, 55, 55]
 
         for i, col_name in enumerate(header2):
             pdf.cell(col_widths2[i], 7, col_name, border=1, align="C")
@@ -367,7 +368,8 @@ def handle_daily_pdf_export(req):
             pdf.cell(col_widths2[2], 6, get_user_category_label(user), border=1)
             pdf.cell(col_widths2[3], 6, (user.centro if user and user.centro else "-")[:20], border=1)
             pdf.cell(col_widths2[4], 6, status_record.status, border=1, align="C")
-            pdf.cell(col_widths2[5], 6, (status_record.notes or "")[:40], border=1)
+            pdf.cell(col_widths2[5], 6, (status_record.notes or "")[:35], border=1)
+            pdf.cell(col_widths2[6], 6, (status_record.admin_notes or "")[:35], border=1)
             pdf.ln()
 
     # Guardar PDF
@@ -552,7 +554,7 @@ def export_excel():
             ws1 = wb.active
             ws1.title = "Registros de Fichaje"
 
-            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Modificado Por", "Última Actualización"]
+            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
             for col_num, header_text in enumerate(header1, 1):
                 cell = ws1.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -581,8 +583,9 @@ def export_excel():
                 ws1.cell(row=row_num, column=7).value = record.check_out.strftime("%H:%M:%S") if record.check_out else "-"
                 ws1.cell(row=row_num, column=8).value = hours_worked
                 ws1.cell(row=row_num, column=9).value = record.notes
-                ws1.cell(row=row_num, column=10).value = modified_by.username if modified_by else "-"
-                ws1.cell(row=row_num, column=11).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                ws1.cell(row=row_num, column=10).value = record.admin_notes
+                ws1.cell(row=row_num, column=11).value = modified_by.username if modified_by else "-"
+                ws1.cell(row=row_num, column=12).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
                 row_num += 1
 
             for col_num, _ in enumerate(header1, 1):
@@ -596,7 +599,7 @@ def export_excel():
         if employee_statuses:
             ws2 = wb.create_sheet("Bajas y Ausencias")
 
-            header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas"]
+            header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas", "Notas Admin"]
             for col_num, header_text in enumerate(header2, 1):
                 cell = ws2.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -615,6 +618,7 @@ def export_excel():
                 ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
                 ws2.cell(row=row_num, column=6).value = status_record.status
                 ws2.cell(row=row_num, column=7).value = status_record.notes or "-"
+                ws2.cell(row=row_num, column=8).value = status_record.admin_notes or "-"
                 row_num += 1
 
             for col_num, _ in enumerate(header2, 1):
@@ -624,7 +628,7 @@ def export_excel():
         # ========== PESTAÑA 3: RESUMEN CONSOLIDADO ==========
         ws3 = wb.create_sheet("Resumen Consolidado")
 
-        header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas"]
+        header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas", "Notas Admin"]
         for col_num, header_text in enumerate(header3, 1):
             cell = ws3.cell(row=1, column=col_num)
             cell.value = header_text
@@ -655,7 +659,8 @@ def export_excel():
                 'entrada': record.check_in.strftime("%H:%M:%S") if record.check_in else "-",
                 'salida': record.check_out.strftime("%H:%M:%S") if record.check_out else "-",
                 'horas': hours_worked,
-                'notas': record.notes or "-"
+                'notas': record.notes or "-",
+                'admin_notes': record.admin_notes or "-"
             })
 
         # Agregar EmployeeStatus
@@ -672,7 +677,8 @@ def export_excel():
                 'entrada': "-",
                 'salida': "-",
                 'horas': "-",
-                'notas': status_record.notes or "-"
+                'notas': status_record.notes or "-",
+                'admin_notes': status_record.admin_notes or "-"
             })
 
         # Ordenar por usuario y fecha
@@ -691,6 +697,7 @@ def export_excel():
             ws3.cell(row=row_num, column=8).value = rec['salida']
             ws3.cell(row=row_num, column=9).value = rec['horas']
             ws3.cell(row=row_num, column=10).value = rec['notas']
+            ws3.cell(row=row_num, column=11).value = rec['admin_notes']
             row_num += 1
 
         for col_num, _ in enumerate(header3, 1):
@@ -766,6 +773,8 @@ def export_excel_monthly():
             user_id = request.form.get("user_id")
             categoria = request.form.get("categoria")
             weekly_hours = request.form.get("weekly_hours") or request.form.get("jornada")
+
+        categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
 
         start_date = request.form.get("start_date")
         end_date = request.form.get("end_date")
@@ -870,7 +879,7 @@ def export_excel_monthly():
                     hours = time_diff.total_seconds() / 3600
                     weekly_totals[record.user_id][week_start] += hours
 
-            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Horas Semanales", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Diferencia Horas", "Notas", "Modificado Por", "Última Actualización"]
+            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Horas Semanales", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Diferencia Horas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
             for col_num, header_text in enumerate(header1, 1):
                 cell = ws1.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -936,7 +945,7 @@ def export_excel_monthly():
                     cell.alignment = Alignment(horizontal='center')
                     cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
 
-                    for col in range(11, 14):
+                    for col in range(11, 15):
                         cell = ws1.cell(row=row_num, column=col)
                         cell.value = "-"
                         cell.alignment = Alignment(horizontal='center')
@@ -986,11 +995,14 @@ def export_excel_monthly():
                         ws1.cell(row=row_num, column=11).value = record.notes
                         ws1.cell(row=row_num, column=11).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=12).value = modified_by.username if modified_by else "-"
+                        ws1.cell(row=row_num, column=12).value = record.admin_notes
                         ws1.cell(row=row_num, column=12).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=13).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                        ws1.cell(row=row_num, column=13).value = modified_by.username if modified_by else "-"
                         ws1.cell(row=row_num, column=13).alignment = Alignment(horizontal='center')
+
+                        ws1.cell(row=row_num, column=14).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                        ws1.cell(row=row_num, column=14).alignment = Alignment(horizontal='center')
                         row_num += 1
 
                     row_num += 1
@@ -1004,7 +1016,7 @@ def export_excel_monthly():
         # ===== PESTAÑA 2: BAJAS Y AUSENCIAS =====
         if employee_statuses:
             ws2 = wb.create_sheet("Bajas y Ausencias")
-            header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas"]
+            header2 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Notas", "Notas Admin"]
             for col_num, header_text in enumerate(header2, 1):
                 cell = ws2.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -1022,6 +1034,7 @@ def export_excel_monthly():
                 ws2.cell(row=row_num, column=5).value = status_record.date.strftime("%d/%m/%Y")
                 ws2.cell(row=row_num, column=6).value = status_record.status
                 ws2.cell(row=row_num, column=7).value = status_record.notes or "-"
+                ws2.cell(row=row_num, column=8).value = status_record.admin_notes or "-"
                 row_num += 1
 
             for col_num, _ in enumerate(header2, 1):
@@ -1030,7 +1043,7 @@ def export_excel_monthly():
 
         # ===== PESTAÑA 3: RESUMEN CONSOLIDADO =====
         ws3 = wb.create_sheet("Resumen Consolidado")
-        header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas"]
+        header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas", "Notas Admin"]
         for col_num, header_text in enumerate(header3, 1):
             cell = ws3.cell(row=1, column=col_num)
             cell.value = header_text
@@ -1057,7 +1070,8 @@ def export_excel_monthly():
                 'entrada': record.check_in.strftime("%H:%M:%S") if record.check_in else "-",
                 'salida': record.check_out.strftime("%H:%M:%S") if record.check_out else "-",
                 'horas': hours_worked,
-                'notas': record.notes or "-"
+                'notas': record.notes or "-",
+                'admin_notes': record.admin_notes or "-"
             })
 
         for status_record in employee_statuses:
@@ -1073,7 +1087,8 @@ def export_excel_monthly():
                 'entrada': "-",
                 'salida': "-",
                 'horas': "-",
-                'notas': status_record.notes or "-"
+                'notas': status_record.notes or "-",
+                'admin_notes': status_record.admin_notes or "-"
             })
 
         # Ordenar por usuario y fecha
@@ -1091,6 +1106,7 @@ def export_excel_monthly():
             ws3.cell(row=row_num, column=8).value = rec['salida']
             ws3.cell(row=row_num, column=9).value = rec['horas']
             ws3.cell(row=row_num, column=10).value = rec['notas']
+            ws3.cell(row=row_num, column=11).value = rec['admin_notes']
             row_num += 1
 
         for col_num, _ in enumerate(header3, 1):
