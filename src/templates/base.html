@@ -99,8 +99,11 @@
 
 
     {% if session.get('is_admin') %}
+    <!-- Overlay para cerrar sidebar en móvil -->
+    <div id="sidebar-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"></div>
+
     <!-- Sidebar -->
-    <aside id="sidebar" class="hidden md:block md:flex flex-col w-56 bg-secondary text-primary flex-shrink-0 fixed md:static z-20 h-full md:h-auto border-r border-primary overflow-y-auto">
+    <aside id="sidebar" class="hidden md:block md:flex flex-col w-56 bg-secondary text-primary flex-shrink-0 fixed md:static z-50 h-full md:h-auto border-r border-primary overflow-y-auto">
       <div class="px-6 py-3 font-brand text-xl text-center border-b border-primary text-primary">Menú</div>
       <nav class="mt-4 flex flex-col gap-1 px-2 flex-1">
         {% set links = [
@@ -256,11 +259,26 @@
   <script>
     // Toggle sidebar en móvil
     const btnSidebar = document.getElementById('btn-sidebar-toggle');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
     if (btnSidebar) {
       const aside = document.getElementById('sidebar');
+
+      // Abrir/cerrar sidebar con botón hamburguesa
       btnSidebar.addEventListener('click', () => {
         aside.classList.toggle('hidden');
+        if (sidebarOverlay) {
+          sidebarOverlay.classList.toggle('hidden');
+        }
       });
+
+      // Cerrar sidebar al hacer click en el overlay
+      if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => {
+          aside.classList.add('hidden');
+          sidebarOverlay.classList.add('hidden');
+        });
+      }
     }
 
     // Auto-desvanecido de flashes globales tras 2s
