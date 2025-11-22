@@ -121,8 +121,8 @@ def create_client(name, plan, logo_path=None, primary_color="#0ea5e9", secondary
             # Verificar que no exista
             existing = Client.query.filter_by(slug=slug).first()
             if existing:
-                print(f"❌ Error: Ya existe un cliente con slug '{slug}'")
-                return None
+                print(f"ℹ️  Ya existe un cliente con slug '{slug}'. Continuando con creación/actualización de admin...")
+                return existing
 
             # Subir logo si se proporcionó
             logo_url = None
@@ -162,7 +162,13 @@ def create_client(name, plan, logo_path=None, primary_color="#0ea5e9", secondary
             return None
 
 
-def create_admin_user(client_id, username, password, full_name, email):
+def _generate_placeholder_email(slug: str, username: str) -> str:
+    safe_user = re.sub(r"[^a-z0-9]+", "-", username.lower()) or "admin"
+    safe_slug = re.sub(r"[^a-z0-9]+", "-", slug.lower()) or "cliente"
+    return f"{safe_user}+{safe_slug}@placeholder.local"
+
+
+def create_admin_user(client_id, username, password, full_name, email, client_slug: str | None = None):
     """
     Crea el usuario administrador inicial para un cliente.
 
@@ -178,17 +184,46 @@ def create_admin_user(client_id, username, password, full_name, email):
     """
     with app.app_context():
         try:
-            # Verificar que el username no exista
-            existing = User.query.filter_by(username=username).first()
+            # Verificar que el username no exista EN ESTE CLIENTE
+            existing = User.query.filter_by(client_id=client_id, username=username).first()
             if existing:
-                print(f"❌ Error: Ya existe un usuario con username '{username}'")
-                return None
+                # Actualizar datos del usuario existente (upsert)
+                print(f"ℹ️  Usuario '{username}' ya existe en este cliente. Actualizando datos...")
+                if full_name:
+                    existing.full_name = full_name
+                if email:
+                    # Validar unicidad por cliente para email si cambia
+                    if existing.email != email:
+                        dup = User.query.filter_by(client_id=client_id, email=email).first()
+                        if dup:
+                            print(f"❌ Error: Ya existe un usuario con email '{email}' en este cliente")
+                            return None
+                        existing.email = email
+                if password:
+                    existing.set_password(password)
+                db.session.commit()
+                print(f"✅ Usuario administrador actualizado")
+                print(f"   ID: {existing.id}")
+                print(f"   Username: {existing.username}")
+                print(f"   Email: {existing.email}")
+                return existing
 
-            # Verificar que el email no exista
-            existing_email = User.query.filter_by(email=email).first()
-            if existing_email:
-                print(f"❌ Error: Ya existe un usuario con email '{email}'")
-                return None
+            # Si no se proporciona email, generar uno placeholder único
+            if not email:
+                email = _generate_placeholder_email(client_slug or "cliente", username)
+                # Asegurar unicidad si existiera
+                counter = 1
+                base_email = email
+                while User.query.filter_by(client_id=client_id, email=email).first():
+                    email = base_email.replace("@", f"+{counter}@")
+                    counter += 1
+                print(f"⚠️  Email no proporcionado. Usando placeholder: {email}")
+            else:
+                # Verificar que el email no exista
+                existing_email = User.query.filter_by(client_id=client_id, email=email).first()
+                if existing_email:
+                    print(f"❌ Error: Ya existe un usuario con email '{email}'")
+                    return None
 
             # Crear usuario administrador
             user = User(
@@ -305,14 +340,7 @@ def interactive_setup():
             db.session.commit()
         return
 
-    email = input("Email: ").strip()
-    if not email:
-        print("❌ El email es requerido")
-        # Eliminar cliente creado
-        with app.app_context():
-            db.session.delete(client)
-            db.session.commit()
-        return
+    email = input("Email (Enter para omitir): ").strip()
 
     # Crear admin
     admin = create_admin_user(
@@ -320,15 +348,13 @@ def interactive_setup():
         username=username,
         password=password,
         full_name=full_name,
-        email=email
+        email=email,
+        client_slug=client.slug
     )
 
     if not admin:
         print("\n❌ No se pudo crear el usuario administrador.")
-        # Eliminar cliente creado
-        with app.app_context():
-            db.session.delete(client)
-            db.session.commit()
+        print("ℹ️  El cliente permanece creado. Puedes volver a ejecutar este script solo para crear el admin o usar src/create_admin.py.")
         return
 
     print("\n" + "=" * 60)
