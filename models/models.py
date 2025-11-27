@@ -9,7 +9,7 @@ class Client(db.Model):
     __tablename__ = "client"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), unique=True, nullable=False)  # Ej: "Aluminios Lara"
+    name = db.Column(db.String(200), unique=True, nullable=False)  # Ej: "Mi primer cliente"
     slug = db.Column(db.String(100), unique=True, nullable=False)  # Ej: "aluminios-lara"
     plan = db.Column(
         db.Enum("lite", "pro", name="plan_enum"),
@@ -62,7 +62,7 @@ class Center(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
-    name = db.Column(db.String(200), nullable=False)  # Ej: "Centro 1", "Aluminios Lara"
+    name = db.Column(db.String(200), nullable=False)  # Ej: "Centro 1", "Centro 2"
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -92,7 +92,7 @@ class User(db.Model):
     weekly_hours = db.Column(db.Integer, nullable=False, default=0)
     centro = db.Column(
         db.Enum(
-            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Aluminios Lara", "La esquina del paisa",
+            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Centro 4", "La esquina del paisa",
             name="centro_enum"
         ),
         nullable=True

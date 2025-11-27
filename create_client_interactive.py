@@ -25,7 +25,7 @@ def main():
     print("PASO 1: DATOS DEL CLIENTE")
     print("-" * 70)
 
-    client_name = input("Nombre del cliente (ej: Patacones de mi tierra): ").strip()
+    client_name = input("Nombre del cliente (ej: Mi primer cliente): ").strip()
     if not client_name:
         print("❌ El nombre del cliente es obligatorio")
         return 1

@@ -21,7 +21,7 @@ Time Pro ahora soporta múltiples clientes en una sola base de datos. Cada clien
 │  │   Client     │ ← Tabla principal de clientes         │
 │  ├──────────────┤                                        │
 │  │ id           │                                        │
-│  │ name         │ (ej: "Aluminios Lara")                │
+│  │ name         │ (ej: "Mi primer cliente")             │
 │  │ slug         │ (ej: "aluminios-lara")                │
 │  │ plan         │ (lite/pro)                            │
 │  │ logo_url     │                                        │
@@ -99,9 +99,9 @@ APLICANDO MIGRACIÓN MULTI-TENANT
    - Cliente por defecto 'Time Pro' creado
 ```
 
-### Paso 2: Configurar Aluminios Lara
+### Paso 2: Configurar tu primer cliente
 
-Ahora puedes configurar "Aluminios Lara" como tu primer cliente real:
+Ahora puedes configurar tu primer cliente real (por ejemplo, "Mi primer cliente"):
 
 ```bash
 # Con logo
@@ -127,10 +127,10 @@ python3 setup_aluminios_lara.py
   CONFIGURACIÓN DE ALUMINIOS LARA
 ======================================================================
 
-1. Verificando si Aluminios Lara ya existe...
+1. Verificando si el cliente ya existe...
    ✅ Cliente no existe, creando nuevo...
 
-2. Cliente 'Aluminios Lara' creado
+2. Cliente de ejemplo creado correctamente
    ID: 2
    Slug: aluminios-lara
    Plan: PRO
@@ -159,7 +159,7 @@ python3 setup_aluminios_lara.py
 ======================================================================
 
 📋 Resumen:
-   Cliente: Aluminios Lara
+   Cliente: (nombre del cliente)
    ID: 2
    Slug: aluminios-lara
    Plan: PRO
@@ -190,7 +190,7 @@ python3 apply_multitenant_migration.py
 
 ### 2. `setup_aluminios_lara.py`
 
-Configura Aluminios Lara como cliente.
+Configura tu primer cliente en el sistema.
 
 **Uso:**
 ```bash
@@ -304,7 +304,7 @@ def inject_user():
 **Variables disponibles en templates:**
 
 - `current_client` - Objeto Client del usuario actual
-- `current_client.name` - Nombre del cliente (ej: "Aluminios Lara")
+- `current_client.name` - Nombre del cliente (ej: "Mi primer cliente")
 - `current_client.logo_url` - URL del logo
 - `current_client.plan` - Plan ("lite" o "pro")
 - `client_config` - Configuración completa del cliente
@@ -463,16 +463,16 @@ SELECT * FROM client;
 SELECT id, username, client_id FROM "user" LIMIT 5;
 ```
 
-### Verificar Aluminios Lara
+### Verificar el cliente configurado
 
 ```bash
 # Conectarse a la BD
 psql $DATABASE_URL
 
-# Ver cliente Aluminios Lara
+# Ver cliente configurado
 SELECT * FROM client WHERE slug = 'aluminios-lara';
 
-# Ver usuarios de Aluminios Lara
+# Ver usuarios del cliente configurado
 SELECT id, username, full_name, is_admin
 FROM "user"
 WHERE client_id = (SELECT id FROM client WHERE slug = 'aluminios-lara');
@@ -493,7 +493,7 @@ Todos los datos existentes se asignan automáticamente al cliente por defecto "T
 Sí:
 
 ```python
-client = Client.query.get(2)  # Aluminios Lara
+client = Client.query.get(2)  # Cliente de ejemplo
 client.plan = 'lite'  # Cambiar de pro a lite
 db.session.commit()
 ```
@@ -548,7 +548,7 @@ Si tienes problemas durante la configuración:
 - [ ] Ejecutar `apply_multitenant_migration.py`
 - [ ] Verificar que la migración se aplicó correctamente
 - [ ] Ejecutar `setup_aluminios_lara.py` con el logo
-- [ ] Crear usuario administrador para Aluminios Lara
+- [ ] Crear usuario administrador para el cliente configurado
 - [ ] Verificar que el login funciona
 - [ ] Verificar que el logo se muestra
 - [ ] Crear algunos empleados de prueba

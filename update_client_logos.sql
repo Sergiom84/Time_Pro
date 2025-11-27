@@ -19,10 +19,10 @@ UPDATE client
 SET logo_url = 'https://gqesfclbingbihakiojm.supabase.co/storage/v1/object/public/Logos/PruebaCo.JPG'
 WHERE id = 2 AND name = 'PruebaCo';
 
--- Aluminios Lara (client_id=4) logo is already updated
+-- Cliente de ejemplo 4 (client_id=4) logo is already updated
 -- UPDATE client
--- SET logo_url = 'https://gqesfclbingbihakiojm.supabase.co/storage/v1/object/public/Logos/Aluminios_Lara.JPG'
--- WHERE id = 4 AND name = 'Aluminios Lara';
+-- SET logo_url = '<logo-url-here>'
+-- WHERE id = 4 AND name = 'Cliente de ejemplo 4';
 
 -- Verify all logos are set
 SELECT id, name, logo_url FROM client WHERE id IN (1, 2, 4) ORDER BY id;

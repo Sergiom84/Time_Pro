@@ -20,7 +20,7 @@ from config.supabase_config import SUPABASE_URL, SUPABASE_KEY
 
 def slugify(text):
     """
-    Convierte texto a slug (ej: "Aluminios Lara" -> "aluminios-lara")
+    Convierte texto a slug (ej: "Mi primer cliente" -> "mi-primer-cliente")
     """
     text = text.lower()
     text = re.sub(r'[^a-z0-9]+', '-', text)
@@ -104,7 +104,7 @@ def create_client(name, plan, logo_path=None, primary_color="#0ea5e9", secondary
     Crea un nuevo cliente en la base de datos.
 
     Args:
-        name: Nombre del cliente (ej: "Aluminios Lara")
+        name: Nombre del cliente (ej: "Mi primer cliente")
         plan: Plan del cliente ("lite" o "pro")
         logo_path: Ruta local al logo (opcional)
         primary_color: Color principal en formato hex
@@ -268,7 +268,7 @@ def interactive_setup():
     print()
 
     # Solicitar datos del cliente
-    name = input("Nombre del cliente (ej: Aluminios Lara): ").strip()
+    name = input("Nombre del cliente (ej: Mi primer cliente): ").strip()
     if not name:
         print("❌ El nombre es requerido")
         return

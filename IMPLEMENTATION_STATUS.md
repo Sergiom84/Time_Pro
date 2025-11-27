@@ -28,7 +28,7 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
 - [x] Each client can have custom categories
 - [x] Time Pro (client_id=1): "Coordinador", "Empleado", "Gestor"
 - [x] PruebaCo (client_id=2): "Coordinador", "Empleado", "Gestor"
-- [x] Aluminios Lara (client_id=4): "Gestor", "Empleado" (no Coordinador)
+-- [x] Cliente 4 (client_id=4): "Gestor", "Empleado" (no Coordinador)
 
 #### Backend Functions
 - [x] `get_categorias_disponibles()`: Returns list of category names for current client
@@ -47,7 +47,7 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
 - [x] Each client can have custom centers
 - [x] Time Pro (client_id=1): Centro 1, Centro 2, Centro 3
 - [x] PruebaCo (client_id=2): La esquina del paisa
-- [x] Aluminios Lara (client_id=4): Aluminios Lara
+- [x] Cliente 4 (client_id=4): Cliente de ejemplo 4
 
 #### Backend Functions
 - [x] `get_centros_dinamicos()`: Returns list of center names for current admin
@@ -66,7 +66,7 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
 - [x] Kept `categoria` ENUM column for backward compatibility
 - [x] Kept `centro` ENUM column for backward compatibility
 - [x] Updated ENUM to include all client-specific values
-- [x] ENUM now contains: "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Aluminios Lara", "La esquina del paisa"
+- [x] ENUM now contains: "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Cliente de ejemplo 4", "La esquina del paisa"
 
 #### Migration Strategy
 - [x] New FK columns (category_id, center_id) as source of truth
@@ -139,15 +139,15 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
 - [x] Called automatically on page initialization
 
 #### Data Status
-- [x] Aluminios Lara (client_id=4): Logo URL configured and verified
-  - URL: https://gqesfclbingbihakiojm.supabase.co/storage/v1/object/public/Logos/Aluminios_Lara.JPG
+- [x] Cliente 4 (client_id=4): Logo URL configured and verified
+  - URL: (URL de logo de ejemplo)
   - Verified accessible (HTTP 200, image/jpeg, 24980 bytes)
 - [ ] Time Pro (client_id=1): Logo URL pending
 - [ ] PruebaCo (client_id=2): Logo URL pending
 
 ### ✅ Phase 8: Bug Fixes (Complete)
 
-#### Issue 1: LookupError - 'Aluminios Lara' not in centro_enum
+#### Issue 1: LookupError - 'Cliente de ejemplo 4' not in centro_enum
 - [x] Root cause: ENUM values missing client names
 - [x] Fix: Updated ENUM in models.py to include all center names
 
@@ -182,7 +182,7 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
 - ✅ All templates updated with FK relationships
 - ✅ Multi-tenant isolation verified
 - ✅ Logo loading infrastructure ready
-- ✅ Aluminios Lara logo configured
+- ✅ Logo de cliente 4 configurado
 
 ### What Needs Next Steps
 1. **Logo URLs for remaining clients**
@@ -190,7 +190,7 @@ This document summarizes the complete multi-tenant implementation for Time Pro, 
    - Update database using update_logos.py or update_client_logos.sql
 
 2. **Testing with real clients**
-   - Test Aluminios Lara login to verify logo displays
+   - Test login del cliente 4 para verificar que el logo se muestra correctamente
    - Test Time Pro and PruebaCo logos after URLs are obtained
 
 3. **Final Commit**

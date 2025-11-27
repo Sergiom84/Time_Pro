@@ -100,7 +100,7 @@ def add_missing_centers():
         centers_spec = {
             1: ["Centro 1", "Centro 2", "Centro 3"],
             2: ["La esquina del paisa"],
-            4: ["Aluminios Lara"]
+            4: ["Cliente de ejemplo 4"]
         }
 
         # Obtener centros existentes

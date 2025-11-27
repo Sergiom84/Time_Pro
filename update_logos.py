@@ -76,9 +76,9 @@ def update_all_logos():
                     "url": None
                 },
                 4: {
-                    "name": "Aluminios Lara",
-                    "prompt": "Enter Aluminios Lara logo URL (or press Enter to skip): ",
-                    "url": "https://gqesfclbingbihakiojm.supabase.co/storage/v1/object/public/Logos/Aluminios_Lara.JPG"
+                    "name": "Cliente de ejemplo 4",
+                    "prompt": "Enter example client 4 logo URL (or press Enter to skip): ",
+                    "url": ""
                 }
             }
 
@@ -88,7 +88,7 @@ def update_all_logos():
             for client_id, info in logos.items():
                 print(f"\n{info['name']} (ID: {client_id})")
 
-                # For Aluminios Lara, show the existing URL
+                # For example client 4, show the existing URL (if any)
                 if client_id == 4:
                     print(f"  Current URL: {info['url']}")
                     change = input("  Do you want to change it? (y/n): ").strip().lower()
