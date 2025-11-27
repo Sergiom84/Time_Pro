@@ -231,11 +231,11 @@ def create_admin_user(client_id, username, password, full_name, email, client_sl
                 username=username,
                 full_name=full_name,
                 email=email,
-                is_admin=True,
+                role='super_admin',  # Super admin del cliente
                 is_active=True,
                 weekly_hours=40,
-                centro="-- Sin categoría --",  # Super admin sin centro específico
-                categoria="Gestor"
+                center_id=None,  # Super admin sin centro específico
+                category_id=None
             )
 
             user.set_password(password)
