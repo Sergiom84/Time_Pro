@@ -19,21 +19,27 @@ depends_on = None
 
 
 def upgrade():
+    # Check if columns exist before dropping them
+    # This is more reliable than try/except within batch_alter_table
+
+    # Get the current table structure
+    from sqlalchemy import inspect
+    from sqlalchemy.engine import reflection
+
+    # Create a connection to inspect the table
+    conn = op.get_bind()
+    inspector = reflection.Inspector.from_engine(conn)
+    columns = [col['name'] for col in inspector.get_columns('user')]
+
     # Drop old centro column if it exists
-    with op.batch_alter_table('user', schema=None) as batch_op:
-        try:
+    if 'centro' in columns:
+        with op.batch_alter_table('user', schema=None) as batch_op:
             batch_op.drop_column('centro')
-        except Exception:
-            # Column might not exist in some databases
-            pass
 
     # Drop old categoria column if it exists
-    with op.batch_alter_table('user', schema=None) as batch_op:
-        try:
+    if 'categoria' in columns:
+        with op.batch_alter_table('user', schema=None) as batch_op:
             batch_op.drop_column('categoria')
-        except Exception:
-            # Column might not exist in some databases
-            pass
 
 
 def downgrade():
