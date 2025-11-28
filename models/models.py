@@ -90,13 +90,6 @@ class User(db.Model):
     )  # null=usuario normal, 'admin'=admin de centro, 'super_admin'=admin global
     is_active = db.Column(db.Boolean, default=True)
     weekly_hours = db.Column(db.Integer, nullable=False, default=0)
-    centro = db.Column(
-        db.Enum(
-            "-- Sin categoría --", "Centro 1", "Centro 2", "Centro 3", "Centro 4", "La esquina del paisa",
-            name="centro_enum"
-        ),
-        nullable=True
-    )
     center_id = db.Column(db.Integer, db.ForeignKey("center.id", ondelete="SET NULL"), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey("category.id", ondelete="SET NULL"), nullable=True)
     hire_date = db.Column(db.Date, nullable=True)

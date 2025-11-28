@@ -1,0 +1,6 @@
+username,password,full_name,email,weekly_hours,center_name,category_name
+juan.perez,pass123,Juan Pérez,juan.perez@ejemplo.com,40,Centro 1,Empleado
+maria.gomez,pass456,María Gómez,maria.gomez@ejemplo.com,30,Centro 1,Coordinador
+carlos.ruiz,pass789,Carlos Ruiz,carlos.ruiz@ejemplo.com,40,Centro 2,Empleado
+ana.lopez,pass000,Ana López,ana.lopez@ejemplo.com,35,Centro 2,Gestor
+pedro.martin,pass111,Pedro Martín,pedro.martin@ejemplo.com,40,Centro 1,Empleado

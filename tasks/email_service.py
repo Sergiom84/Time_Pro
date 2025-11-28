@@ -42,7 +42,7 @@ Hola {user.full_name},
 
 Este es un recordatorio para que no olvides fichar tu entrada.
 
-Centro: {user.centro or 'No asignado'}
+Centro: {user.center.name if user.center else 'No asignado'}
 
 Puedes fichar desde el panel de empleado en: {os.getenv('APP_URL', 'tu aplicación')}
 
@@ -59,7 +59,7 @@ Hola {user.full_name},
 
 Este es un recordatorio para que no olvides fichar tu salida.
 
-Centro: {user.centro or 'No asignado'}
+Centro: {user.center.name if user.center else 'No asignado'}
 
 Puedes fichar desde el panel de empleado en: {os.getenv('APP_URL', 'tu aplicación')}
 

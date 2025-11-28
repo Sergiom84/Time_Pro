@@ -52,10 +52,10 @@ def login():
             session["is_admin"] = user.role is not None  # True si tiene algún rol (admin o super_admin)
             session["client_id"] = user.client_id  # Multi-tenant: guardar client_id
             # Guardar el centro del admin si está asignado
-            if user.role and user.centro and user.centro != "-- Sin categoría --":
-                session["admin_centro"] = user.centro
+            if user.role and user.center_id:
+                session["admin_center_id"] = user.center_id
             else:
-                session["admin_centro"] = None
+                session["admin_center_id"] = None
             # No mostramos flash de "Inicio de sesión exitoso" para evitar mensajes residuales
             if user.role:  # Si tiene algún rol (admin o super_admin)
                 return redirect(url_for("admin.dashboard"))
@@ -72,7 +72,7 @@ def login():
 def logout():
     session.pop("user_id", None)
     session.pop("is_admin", None)
-    session.pop("admin_centro", None)
+    session.pop("admin_center_id", None)
     session.pop("client_id", None)  # Multi-tenant: limpiar client_id
     # Asegurar que no queden flashes anteriores (p.ej., "inicio de sesión exitoso")
     session.pop("_flashes", None)

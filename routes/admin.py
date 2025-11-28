@@ -134,9 +134,9 @@ def admin_required(f):
 
 def get_admin_centro():
     """
-    Obtiene el centro del admin actual.
+    Obtiene el center_id del admin actual.
     - Super admin: retorna None (acceso global)
-    - Admin de centro: retorna su centro
+    - Admin de centro: retorna su center_id
     - Usuario normal: retorna None (no es admin)
     """
     uid = session.get("user_id")
@@ -149,9 +149,9 @@ def get_admin_centro():
     # Si es super admin, retornar None (acceso global)
     if is_super_admin_user(u):
         return None
-    # Admin de centro: retornar su centro (no puede ser "-- Sin categoría --")
-    if u.centro and u.centro != "-- Sin categoría --":
-        return u.centro
+    # Admin de centro: retornar su center_id
+    if u.center_id:
+        return u.center_id
     return None
 
 def get_centros_disponibles():
@@ -244,9 +244,9 @@ def dashboard():
     # Empleados: usuarios sin rol admin
     user_q = User.query.filter(User.role.is_(None))
     if centro_admin:
-        user_q = user_q.filter(User.centro == centro_admin)
+        user_q = user_q.filter(User.center_id == centro_admin)
     elif filtro_centro:
-        user_q = user_q.filter(User.centro == filtro_centro)
+        user_q = user_q.filter(User.center_id == filtro_centro)
     if filtro_categoria_id:
         user_q = user_q.filter(User.category_id == filtro_categoria_id)
     elif filtro_categoria_none:
@@ -262,9 +262,9 @@ def dashboard():
         .with_entities(TimeRecord.user_id)
     )
     if centro_admin:
-        active_q = active_q.filter(User.centro == centro_admin)
+        active_q = active_q.filter(User.center_id == centro_admin)
     elif filtro_centro:
-        active_q = active_q.filter(User.centro == filtro_centro)
+        active_q = active_q.filter(User.center_id == filtro_centro)
     if filtro_categoria_id:
         active_q = active_q.filter(User.category_id == filtro_categoria_id)
     elif filtro_categoria_none:
@@ -285,9 +285,9 @@ def dashboard():
         )
     )
     if centro_admin:
-        q = q.filter(User.centro == centro_admin)
+        q = q.filter(User.center_id == centro_admin)
     elif filtro_centro:
-        q = q.filter(User.centro == filtro_centro)
+        q = q.filter(User.center_id == filtro_centro)
     if filtro_categoria_id:
         q = q.filter(User.category_id == filtro_categoria_id)
     elif filtro_categoria_none:
@@ -573,8 +573,7 @@ def edit_user(user_id):
         else:
             centro_name = request.form.get("centro") or None
 
-        # Mantener compatibilidad con ENUM pero usar FK dinámicamente
-        user.centro = centro_name
+        # Usar FK dinámicamente
         user.center_id = get_center_id_by_name(centro_name) if centro_name and centro_name != "-- Sin categoría --" else None
 
         # Convertir el nombre de categoría a category_id
@@ -922,9 +921,9 @@ def manage_records():
     # Scope por centro del admin, si aplica. Si es super admin, permitir filtro por centro
     centro_admin = get_admin_centro()
     if centro_admin:
-        q = q.filter(User.centro == centro_admin)
+        q = q.filter(User.center_id == centro_admin)
     elif filtro_centro:
-        q = q.filter(User.centro == filtro_centro)
+        q = q.filter(User.center_id == filtro_centro)
 
     # Aplicar filtros opcionales (fechas)
     ci_from = co_to = None
@@ -1231,9 +1230,9 @@ def api_centro_info():
 
     centro_admin = get_admin_centro()
     if centro_admin:
-        users = users.filter(User.centro == centro_admin)
+        users = users.filter(User.center_id == centro_admin)
     elif centro:
-        users = users.filter(User.centro == centro)
+        users = users.filter(User.center_id == centro)
 
     users = users.all()
     # Obtener categorías dinámicas del cliente actual (no hardcodeadas)
@@ -1396,7 +1395,7 @@ def open_records():
         )
     )
     if centro_admin:
-        q = q.filter(User.centro == centro_admin)
+        q = q.filter(User.center_id == centro_admin)
     open_records = q.all()
 
     if request.method == "POST":
@@ -1483,9 +1482,9 @@ def leave_requests():
 
     # Aplicar filtros
     if centro_admin:
-        query = query.filter(User.centro == centro_admin)
+        query = query.filter(User.center_id == centro_admin)
     elif filter_centro != "all":
-        query = query.filter(User.centro == filter_centro)
+        query = query.filter(User.center_id == filter_centro)
 
     if filter_categoria_id:
         query = query.filter(User.category_id == filter_categoria_id)
@@ -1525,9 +1524,9 @@ def leave_requests():
 
     # Aplicar filtros al historial
     if centro_admin:
-        history_query = history_query.filter(User.centro == centro_admin)
+        history_query = history_query.filter(User.center_id == centro_admin)
     elif filter_centro != "all":
-        history_query = history_query.filter(User.centro == filter_centro)
+        history_query = history_query.filter(User.center_id == filter_centro)
 
     if filter_categoria_id:
         history_query = history_query.filter(User.category_id == filter_categoria_id)
@@ -1596,7 +1595,7 @@ def approve_leave_request(request_id):
         # Verificar permisos
         if centro_admin:
             user = User.query.get(leave_request.user_id)
-            if user.centro != centro_admin:
+            if user.center_id != centro_admin:
                 if is_ajax:
                     return jsonify({"success": False, "error": "No tienes permisos para aprobar esta solicitud."}), 403
                 flash("No tienes permisos para aprobar esta solicitud.", "danger")
@@ -1685,7 +1684,7 @@ def reject_leave_request(request_id):
         # Verificar permisos
         if centro_admin:
             user = User.query.get(leave_request.user_id)
-            if user.centro != centro_admin:
+            if user.center_id != centro_admin:
                 if is_ajax:
                     return jsonify({"success": False, "error": "No tienes permisos para rechazar esta solicitud."}), 403
                 flash("No tienes permisos para rechazar esta solicitud.", "danger")
@@ -1758,10 +1757,10 @@ def work_pauses():
 
     # Si es admin de centro, filtrar por centro
     if centro_admin:
-        query = query.filter(User.centro == centro_admin)
+        query = query.filter(User.center_id == centro_admin)
         filter_centro = centro_admin
     elif filter_centro != "all" and filter_centro:
-        query = query.filter(User.centro == filter_centro)
+        query = query.filter(User.center_id == filter_centro)
 
     if filter_categoria_id:
         query = query.filter(User.category_id == filter_categoria_id)
@@ -1844,7 +1843,7 @@ def get_leave_notifications():
 
     # Filtrar por centro si aplica
     if centro_admin:
-        query = query.filter(User.centro == centro_admin)
+        query = query.filter(User.center_id == centro_admin)
 
     notifications = query.order_by(LeaveRequest.created_at.desc()).limit(20).all()
 
@@ -1891,7 +1890,7 @@ def get_pending_requests():
 
     # Filtrar por centro si aplica
     if centro_admin:
-        query = query.filter(User.centro == centro_admin)
+        query = query.filter(User.center_id == centro_admin)
 
     requests = query.order_by(LeaveRequest.created_at.desc()).all()
 
