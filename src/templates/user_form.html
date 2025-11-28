@@ -120,13 +120,13 @@
                 {% if not centro_admin %}
                 <!-- Solo super admin puede ver la opción "Sin asignar" -->
                 <option value="-- Sin categoría --"
-                    {% if (form_data and form_data.get('centro') == '-- Sin categoría --') or (user and (user.center.name if user.center else user.centro) == '-- Sin categoría --') or (not form_data and not user) %}selected{% endif %}>
+                    {% if (form_data and form_data.get('centro') == '-- Sin categoría --') or (user and user.center and user.center.name == '-- Sin categoría --') or (not form_data and not user) %}selected{% endif %}>
                     -- Sin asignar --
                 </option>
                 {% endif %}
                 {% for centro in centros %}
                 <option value="{{ centro }}"
-                    {% if (form_data and form_data.get('centro') == centro) or (user and (user.center.name if user.center else user.centro) == centro) or (centro_admin == centro and not user) %}selected{% endif %}>
+                    {% if (form_data and form_data.get('centro') == centro) or (user and user.center and user.center.name == centro) or (centro_admin == centro and not user) %}selected{% endif %}>
                     {{ centro }}
                 </option>
                 {% endfor %}

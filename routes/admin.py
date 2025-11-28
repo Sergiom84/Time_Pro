@@ -361,8 +361,8 @@ def manage_users():
         q = q.bypass_tenant_filter()
 
     if centro_admin:
-        # Filtrar por nombre de centro (el admin solo ve su centro)
-        q = q.join(Center, User.center_id == Center.id).filter(Center.name == centro_admin)
+        # Filtrar por ID de centro (el admin solo ve su centro)
+        q = q.filter(User.center_id == centro_admin)
     elif filtro_centro:
         # Filtrar por nombre de centro dinámico
         q = q.join(Center, User.center_id == Center.id).filter(Center.name == filtro_centro)
