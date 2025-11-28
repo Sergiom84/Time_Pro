@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'remove_old_columns_001'
-down_revision = 'change_centro_to_fk_001'
+down_revision = 'add_request_type_001'
 branch_labels = None
 depends_on = None
 
