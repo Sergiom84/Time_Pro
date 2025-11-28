@@ -19,27 +19,39 @@ depends_on = None
 
 
 def upgrade():
-    # Check if columns exist before dropping them
-    # This is more reliable than try/except within batch_alter_table
+    # This migration safely removes the old centro and categoria columns
+    # if they exist. It's safe to run multiple times.
 
-    # Get the current table structure
-    from sqlalchemy import inspect
-    from sqlalchemy.engine import reflection
-
-    # Create a connection to inspect the table
     conn = op.get_bind()
-    inspector = reflection.Inspector.from_engine(conn)
-    columns = [col['name'] for col in inspector.get_columns('user')]
 
-    # Drop old centro column if it exists
-    if 'centro' in columns:
-        with op.batch_alter_table('user', schema=None) as batch_op:
-            batch_op.drop_column('centro')
+    # For PostgreSQL, we can use information_schema
+    # For SQLite, we use PRAGMA table_info
+    if conn.dialect.name == 'postgresql':
+        # Check if columns exist in PostgreSQL
+        result = conn.execute(sa.text("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='user' AND column_name IN ('centro', 'categoria')
+        """))
+        existing_cols = [row[0] for row in result]
 
-    # Drop old categoria column if it exists
-    if 'categoria' in columns:
-        with op.batch_alter_table('user', schema=None) as batch_op:
-            batch_op.drop_column('categoria')
+        if 'centro' in existing_cols:
+            op.execute('ALTER TABLE "user" DROP COLUMN "centro"')
+        if 'categoria' in existing_cols:
+            op.execute('ALTER TABLE "user" DROP COLUMN "categoria"')
+
+    elif conn.dialect.name == 'sqlite':
+        # SQLite doesn't support DROP COLUMN directly in older versions
+        # but we can use batch_alter_table which handles it
+        from sqlalchemy import inspect
+        inspector = inspect(conn)
+        columns = [col['name'] for col in inspector.get_columns('user')]
+
+        if 'centro' in columns or 'categoria' in columns:
+            with op.batch_alter_table('user', schema=None) as batch_op:
+                if 'centro' in columns:
+                    batch_op.drop_column('centro')
+                if 'categoria' in columns:
+                    batch_op.drop_column('categoria')
 
 
 def downgrade():
