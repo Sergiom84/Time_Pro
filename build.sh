@@ -5,8 +5,10 @@ set -e
 echo "==== Building Time Pro ===="
 echo "Migrating database..."
 
-cd src
+# Aseguramos que Flask sepa qué app cargar
+export FLASK_APP=main.py
+
+# Ejecutar migraciones de Alembic/Flask-Migrate
 flask db upgrade
-cd ..
 
 echo "==== Build completed successfully ===="
