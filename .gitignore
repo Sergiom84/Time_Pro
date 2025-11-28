@@ -43,6 +43,8 @@ cover/
 
 # Environments
 .env
+.env.local
+.env.production
 .venv
 env/
 venv/
@@ -96,4 +98,8 @@ instance/
 *.bak
 *~
 temp.txt
+
+# Sensitive configuration files
 .mcp.json
+.claude/settings.local.json
+.claude/*.local.json
