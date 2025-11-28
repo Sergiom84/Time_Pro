@@ -109,8 +109,8 @@ class User(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    center = db.relationship("Center", backref="users", lazy=True)
-    category = db.relationship("Category", backref="users", lazy=True)
+    center = db.relationship("Center", backref="users", lazy=True, foreign_keys=[center_id])
+    category = db.relationship("Category", backref="users", lazy=True, foreign_keys=[category_id])
 
     time_records = db.relationship(
         "TimeRecord",
