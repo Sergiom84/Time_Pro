@@ -83,8 +83,8 @@ def add_employee_interactive(client):
         # Verificar límites del plan
         existing_users = User.query.filter_by(client_id=client.id).count()
 
-        if client.plan == 'lite' and existing_users >= 5:
-            print("❌ ERROR: Plan LITE permite máximo 5 empleados")
+        if client.plan == 'lite' and existing_users >= 10:
+            print("❌ ERROR: Plan LITE permite máximo 10 empleados")
             print(f"   Este cliente ya tiene {existing_users} usuarios")
             print("   Para añadir más empleados, actualiza el plan a PRO")
             return False
@@ -93,8 +93,8 @@ def add_employee_interactive(client):
         print(f"Plan: {client.plan.upper()}")
         print(f"Empleados actuales: {existing_users}")
         if client.plan == 'lite':
-            print(f"Límite: 5 empleados")
-            print(f"Disponibles: {5 - existing_users}")
+            print(f"Límite: 10 empleados")
+            print(f"Disponibles: {10 - existing_users}")
         print()
 
         # Datos del empleado
@@ -231,9 +231,9 @@ def main():
             # Verificar si se alcanzó el límite
             with app.app_context():
                 total_users = User.query.filter_by(client_id=client.id).count()
-                if client.plan == 'lite' and total_users >= 5:
+                if client.plan == 'lite' and total_users >= 10:
                     print()
-                    print("⚠️  Has alcanzado el límite de 5 empleados del plan LITE")
+                    print("⚠️  Has alcanzado el límite de 10 empleados del plan LITE")
                     break
 
         print()

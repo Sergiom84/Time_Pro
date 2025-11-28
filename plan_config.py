@@ -17,7 +17,7 @@ if PLAN not in ['lite', 'pro']:
 PLAN_CONFIG = {
     'lite': {
         # Limites de usuarios
-        'max_employees': 5,
+        'max_employees': 10,
         'max_centers': 1,
 
         # UI/UX
@@ -39,7 +39,7 @@ PLAN_CONFIG = {
 
         # Mensajes personalizados
         'messages': {
-            'employee_limit_reached': 'Has alcanzado el limite de 5 empleados de la version Lite.',
+            'employee_limit_reached': 'Has alcanzado el limite de 10 empleados de la version Lite.',
             'upgrade_prompt': 'Actualiza a la version Pro para anadir empleados ilimitados.',
         }
     },
