@@ -502,7 +502,6 @@ def add_user():
             role             = role,
             is_active        = True,
             weekly_hours     = weekly_hours,
-            centro           = centro,  # Mantener por ahora para compatibilidad
             center_id        = center_id,
             category_id      = category_id,
             hire_date        = hire_date,
