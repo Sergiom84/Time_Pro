@@ -1,7 +1,7 @@
 """Remove old centro and categoria columns from user table
 
 Revision ID: remove_old_columns_001
-Revises: change_centro_to_fk_001
+Revises: add_admin_notes_001
 Create Date: 2025-11-28 00:00:00.000000
 
 Removes the deprecated centro and categoria ENUM columns from the user table.
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'remove_old_columns_001'
-down_revision = 'add_request_type_001'
+down_revision = 'add_admin_notes_001'
 branch_labels = None
 depends_on = None
 
