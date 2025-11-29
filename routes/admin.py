@@ -143,7 +143,8 @@ def apply_leave_request_statuses(leave_request, admin_notes=None, note_suffix="a
     note_suffix permite personalizar el texto descriptivo (ej: 'aprobada', 'recibida').
     """
     status = LEAVE_REQUEST_STATUS_MAP.get(leave_request.request_type, "Ausente")
-    note_text = f"Solicitud {note_suffix}: {leave_request.request_type}"
+    # Usar la razón/nota del empleado en lugar de texto genérico
+    note_text = leave_request.reason or f"Solicitud {note_suffix}: {leave_request.request_type}"
     current_date = leave_request.start_date
 
     while current_date <= leave_request.end_date:
@@ -1141,6 +1142,7 @@ def api_events():
     start   = request.args.get("start")
     end     = request.args.get("end")
     status  = request.args.get("status")
+    statuses_param = request.args.get("statuses")
     centro  = request.args.get("centro")
 
     STATUS_GROUPS = {
@@ -1207,9 +1209,17 @@ def api_events():
         q = q.filter(EmployeeStatus.date >= start_date)
     if end_date:
         q = q.filter(EmployeeStatus.date <= end_date)
-    if status:
-        status_values = STATUS_GROUPS.get(status, [status])
-        q = q.filter(EmployeeStatus.status.in_(status_values))
+    selected_statuses = []
+    if statuses_param:
+        selected_statuses = [s.strip() for s in statuses_param.split(",") if s.strip()]
+    elif status:
+        selected_statuses = [status]
+
+    if selected_statuses:
+        expanded_values = set()
+        for value in selected_statuses:
+            expanded_values.update(STATUS_GROUPS.get(value, [value]))
+        q = q.filter(EmployeeStatus.status.in_(expanded_values))
 
     # Mapa de colores completo (incluye tipos de solicitud específicos)
     color_map = {
