@@ -21,11 +21,6 @@ DEFAULT_CATEGORIES = ["Coordinador", "Empleado", "Gestor"]
 CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
 # Tipos de solicitudes con acciones diferenciadas
-LEAVE_TYPES_RECEIPT_ONLY = {
-    "Baja médica",
-    "Ausencia justificada",
-    "Ausencia injustificada"
-}
 LEAVE_REQUEST_STATUS_MAP = {
     "Vacaciones": "Vacaciones",
     "Permiso especial": "Vacaciones",
@@ -1258,53 +1253,6 @@ def api_events():
             "allDay": True
         })
 
-    # Agregar eventos de LeaveRequest (solicitudes de baja/ausencia/vacaciones)
-    # Solo incluir solicitudes aprobadas o recibidas
-    lr_query = LeaveRequest.query.join(User).filter(
-        User.role.is_(None),  # Solo empleados
-        LeaveRequest.status.in_(["Aprobado", "Recibido"])  # Solo aprobadas o recibidas
-    )
-
-    # Aplicar mismo filtro de centro que EmployeeStatus
-    centro_admin = get_admin_centro()
-    if centro_admin:
-        lr_query = lr_query.filter(User.center_id == centro_admin)
-    elif centro:
-        center_id = get_center_id_by_name(centro)
-        if center_id:
-            lr_query = lr_query.filter(User.center_id == center_id)
-
-    if user_id:
-        lr_query = lr_query.filter(LeaveRequest.user_id == user_id)
-
-    # Filtrar por rango de fechas (incluir cualquier solicitud que se superponga con el rango)
-    if start_date and end_date:
-        lr_query = lr_query.filter(
-            LeaveRequest.start_date <= end_date,
-            LeaveRequest.end_date >= start_date
-        )
-
-    # Para cada LeaveRequest, crear un evento para cada día del rango
-    for lr in lr_query.all():
-        current_date = lr.start_date
-        while current_date <= lr.end_date:
-            color = color_map.get(lr.request_type, "#9ca3af")
-            events.append({
-                "id": f"lr_{lr.id}_{current_date.isoformat()}",  # ID único para cada día
-                "title": f"{lr.request_type} - {lr.user.full_name or lr.user.username}",
-                "start": current_date.isoformat(),
-                "color": color,
-                "extendedProps": {
-                    "notes": lr.reason,
-                    "admin_notes": lr.admin_notes,
-                    "username": lr.user.full_name or lr.user.username,
-                    "category": lr.user.category.name if lr.user.category else "-",
-                    "filterStatus": lr.request_type,
-                    "status": lr.status
-                },
-                "allDay": True
-            })
-            current_date += timedelta(days=1)
 
     return jsonify(events)
 
@@ -1583,11 +1531,11 @@ def leave_requests():
     except ValueError:
         filter_date = date.today()
 
-    # Obtener todas las solicitudes pendientes (incluye "Pendiente" y "Enviado")
+    # Obtener todas las solicitudes pendientes
     query = (
         LeaveRequest.query
         .join(User, LeaveRequest.user_id == User.id)
-        .filter(LeaveRequest.status.in_(["Pendiente", "Enviado"]))
+        .filter(LeaveRequest.status == "Pendiente")
     )
 
     # Aplicar filtros
@@ -1615,7 +1563,7 @@ def leave_requests():
     history_query = (
         LeaveRequest.query
         .join(User, LeaveRequest.user_id == User.id)
-        .filter(LeaveRequest.status.in_(["Aprobado", "Rechazado", "Cancelado", "Recibido"]))
+        .filter(LeaveRequest.status.in_(["Aprobado", "Rechazado", "Cancelado"]))
     )
 
     # Aplicar filtros al historial
@@ -1670,8 +1618,7 @@ def leave_requests():
         next_date=next_date,
         today_iso=today_iso,
         is_today=is_today,
-        centro_admin=centro_admin,
-        receipt_only_types=list(LEAVE_TYPES_RECEIPT_ONLY)
+        centro_admin=centro_admin
     )
 
 
@@ -1731,53 +1678,11 @@ def approve_leave_request(request_id):
 @admin_bp.route("/leave_requests/mark_received/<int:request_id>", methods=["POST"])
 @admin_required
 def mark_leave_request_received(request_id):
-    """Marcar solicitudes sensibles (bajas/ausencias) como recibidas tras revisión manual."""
-    is_ajax = request.headers.get('Accept', '').find('application/json') != -1
-
-    try:
-        centro_admin = get_admin_centro()
-        leave_request = LeaveRequest.query.get_or_404(request_id)
-
-        if leave_request.request_type not in LEAVE_TYPES_RECEIPT_ONLY:
-            msg = "Solo las bajas y ausencias pueden marcarse como 'Recibido'."
-            if is_ajax:
-                return jsonify({"success": False, "error": msg}), 400
-            flash(msg, "warning")
-            return redirect(url_for("admin.leave_requests"))
-
-        if leave_request.status not in ("Pendiente", "Enviado"):
-            msg = "Esta solicitud ya fue gestionada previamente."
-            if is_ajax:
-                return jsonify({"success": False, "error": msg}), 400
-            flash(msg, "info")
-            return redirect(url_for("admin.leave_requests"))
-
-        if centro_admin:
-            user = User.query.get(leave_request.user_id)
-            if user.center_id != centro_admin:
-                if is_ajax:
-                    return jsonify({"success": False, "error": "No tienes permisos para gestionar esta solicitud."}), 403
-                flash("No tienes permisos para gestionar esta solicitud.", "danger")
-                return redirect(url_for("admin.leave_requests"))
-
-        leave_request.status = "Recibido"
-        leave_request.read_by_admin = True
-        leave_request.read_date = datetime.now()
-
-        apply_leave_request_statuses(leave_request, admin_notes=leave_request.admin_notes, note_suffix="recibida")
-        db.session.commit()
-
-        if is_ajax:
-            return jsonify({"success": True, "message": "Solicitud marcada como recibida."})
-
-        flash("Solicitud marcada como recibida.", "success")
-
-    except Exception as e:
-        db.session.rollback()
-        if is_ajax:
-            return jsonify({"success": False, "error": str(e)}), 500
-        flash(f"Error al marcar como recibida: {str(e)}", "danger")
-
+    """
+    DEPRECATED: This workflow has been unified.
+    Use approve/reject workflow instead (all types now use same flow).
+    """
+    flash("El flujo 'Recibido' ha sido eliminado. Usa 'Aprobar' o 'Rechazar' en su lugar.", "info")
     return redirect(url_for("admin.leave_requests"))
 
 
@@ -1993,13 +1898,11 @@ def get_pending_requests():
     """Obtener solicitudes pendientes agrupadas por tipo"""
     centro_admin = get_admin_centro()
 
-    # Consultar solicitudes pendientes o enviadas (no procesadas)
+    # Consultar solicitudes pendientes (no procesadas)
     query = (
         LeaveRequest.query
         .join(User, LeaveRequest.user_id == User.id)
-        .filter(
-            LeaveRequest.status.in_(["Enviado", "Pendiente"])
-        )
+        .filter(LeaveRequest.status == "Pendiente")
     )
 
     # Filtrar por centro si aplica

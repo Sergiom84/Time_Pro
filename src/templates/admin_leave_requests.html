@@ -167,6 +167,7 @@
               </td>
               <td class="px-3 py-3 whitespace-nowrap text-center">
                 <div class="flex gap-2 justify-center">
+                  <!-- Todos los tipos de solicitud ahora usan el mismo flujo: Aprobar/Rechazar -->
                   <form method="POST" action="{{ url_for('admin.approve_leave_request', request_id=request.id) }}" class="inline">
                     <button type="submit"
                             onclick="return confirm('¿Aprobar solicitud de {{ request.request_type }} para {{ request.user_rel.full_name }}?')"
@@ -246,7 +247,9 @@
                 <span class="px-2 py-1 text-xs rounded-full"
                       style="background-color:
                         {% if request.status == 'Aprobado' %}#10B981
+                        {% elif request.status == 'Recibido' %}#10B981
                         {% elif request.status == 'Rechazado' %}#EF4444
+                        {% elif request.status == 'Cancelado' %}#6B7280
                         {% else %}#6B7280{% endif %}; color: white;">
                   {{ request.status }}
                 </span>

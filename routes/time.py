@@ -541,16 +541,10 @@ def create_leave_request():
         # Determinar el estado inicial según el tipo de solicitud
         request_type = data["request_type"]
 
-        # Bajas médicas y ausencias usan el estado "Enviado"
-        leave_types = ["Baja médica", "Ausencia justificada", "Ausencia injustificada"]
-
-        if request_type in leave_types:
-            status = "Enviado"
-            approval_date = None
-        else:
-            # Vacaciones y permisos especiales requieren aprobación
-            status = "Pendiente"
-            approval_date = None
+        # Todas las solicitudes ahora requieren aprobación
+        # Se unificó el flujo: todos los tipos usan "Pendiente" → "Aprobado"/"Rechazado"
+        status = "Pendiente"
+        approval_date = None
 
         # Crear nueva solicitud
         client_id = session.get("client_id", 1)  # Multi-tenant
