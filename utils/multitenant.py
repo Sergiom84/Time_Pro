@@ -5,6 +5,8 @@ from flask import session, g, request, redirect, url_for, abort
 from functools import wraps
 from models.models import Client, User
 import os
+import copy
+import plan_config
 
 
 def get_current_client():
@@ -118,6 +120,9 @@ def get_client_config():
     is_lite = plan == 'lite'
     is_pro = plan == 'pro'
 
+    # Tomar valores base del plan global para evitar duplicaciones
+    plan_defaults = copy.deepcopy(plan_config.PLAN_CONFIG.get(plan, plan_config.PLAN_CONFIG['pro']))
+
     config = {
         'plan': plan,
         'is_lite': is_lite,
@@ -129,51 +134,19 @@ def get_client_config():
         'secondary_color': client.secondary_color if client else '#06b6d4',
     }
 
-    # Configuración por plan
-    if is_lite:
-        config.update({
-            'max_employees': 5,
-            'max_centers': 1,
-            'show_center_selector': False,
-            'center_label': 'Empresa',
-            'center_label_plural': 'Empresas',
-            'features': {
-                'basic_reports': True,
-                'advanced_reports': False,
-                'multi_center': False,
-                'export_excel': True,
-                'calendar_view': True,
-                'leave_requests': True,
-                'work_pauses': True,
-                'email_notifications': True,
-            },
-            'messages': {
-                'employee_limit_reached': 'Has alcanzado el limite de 5 empleados de la version Lite.',
-                'upgrade_prompt': 'Actualiza a la version Pro para anadir empleados ilimitados.'
-            },
-        })
-    else:  # pro
-        config.update({
-            'max_employees': None,
-            'max_centers': None,
-            'show_center_selector': True,
-            'center_label': 'Centro',
-            'center_label_plural': 'Centros',
-            'features': {
-                'basic_reports': True,
-                'advanced_reports': True,
-                'multi_center': True,
-                'export_excel': True,
-                'calendar_view': True,
-                'leave_requests': True,
-                'work_pauses': True,
-                'email_notifications': True,
-            },
-            'messages': {
-                'employee_limit_reached': None,
-                'upgrade_prompt': None
-            },
-        })
+    # Aplicar configuración del plan (Lite/Pro)
+    config.update({
+        'max_employees': plan_defaults.get('max_employees'),
+        'max_centers': plan_defaults.get('max_centers'),
+        'show_center_selector': plan_defaults.get('show_center_selector'),
+        'center_label': plan_defaults.get('center_label'),
+        'center_label_plural': plan_defaults.get('center_label_plural'),
+        'features': plan_defaults.get('features', {}),
+        'messages': plan_defaults.get('messages', {}),
+    })
+
+    # Futuro: permitir overrides por cliente si existen atributos específicos
+    # (por ahora, todos los clientes Lite comparten el mismo límite definido en plan_config.py)
 
     return config
 

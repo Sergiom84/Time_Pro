@@ -102,18 +102,31 @@ def get_center_objects():
 
 def get_center_id_by_name(center_name):
     """
-    Obtiene el ID de un centro por su nombre.
-    Retorna el ID o None si no existe.
+    Obtiene el ID de un centro a partir del valor recibido en formularios.
+    Acepta tanto el nombre (versión antigua) como un ID numérico
+    (cuando el valor ya llega como center_id).
     """
-    if not center_name:
+    if not center_name or center_name == "-- Sin categoría --":
         return None
 
     client_id = session.get("client_id")
     if not client_id:
         return None
 
-    center = Center.query.filter_by(client_id=client_id, name=center_name).first()
-    return center.id if center else None
+    # Si ya es un ID (int o string numérico), devolverlo directamente
+    if isinstance(center_name, int):
+        center = Center.query.filter_by(client_id=client_id, id=center_name).first()
+        return center.id if center else None
+    if isinstance(center_name, str):
+        stripped_value = center_name.strip()
+        if stripped_value.isdigit():
+            center = Center.query.filter_by(client_id=client_id, id=int(stripped_value)).first()
+            return center.id if center else None
+        # Mantener compatibilidad con selecciones antiguas por nombre
+        center = Center.query.filter_by(client_id=client_id, name=center_name).first()
+        return center.id if center else None
+
+    return None
 
 # --------------------------------------------------------------------
 #  UTILIDADES
@@ -951,7 +964,7 @@ def manage_records():
             (User.username.ilike(f"%{search_query}%"))
         )
 
-    recs = q.order_by(TimeRecord.user_id, TimeRecord.date.asc(), TimeRecord.check_in.asc()).all()
+    recs = q.order_by(TimeRecord.check_in.desc()).all()
 
     # Filtrar por horas en Python para compatibilidad con SQLite/Postgres
     if ci_from or co_to:
