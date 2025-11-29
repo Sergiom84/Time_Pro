@@ -20,6 +20,20 @@ CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
 DEFAULT_CATEGORIES = ["Coordinador", "Empleado", "Gestor"]
 CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
+# Tipos de solicitudes con acciones diferenciadas
+LEAVE_TYPES_RECEIPT_ONLY = {
+    "Baja médica",
+    "Ausencia justificada",
+    "Ausencia injustificada"
+}
+LEAVE_REQUEST_STATUS_MAP = {
+    "Vacaciones": "Vacaciones",
+    "Permiso especial": "Vacaciones",
+    "Baja médica": "Baja",
+    "Ausencia justificada": "Ausente",
+    "Ausencia injustificada": "Ausente"
+}
+
 def get_categorias_disponibles():
     """
     Obtiene las categorías dinámicas del cliente actual desde la BD.
@@ -124,9 +138,44 @@ def get_center_id_by_name(center_name):
             return center.id if center else None
         # Mantener compatibilidad con selecciones antiguas por nombre
         center = Center.query.filter_by(client_id=client_id, name=center_name).first()
-        return center.id if center else None
+    return center.id if center else None
 
     return None
+
+def apply_leave_request_statuses(leave_request, admin_notes=None, note_suffix="aprobada"):
+    """
+    Crea o actualiza registros EmployeeStatus seg�n el tipo de solicitud.
+    note_suffix permite personalizar el texto descriptivo (ej: 'aprobada', 'recibida').
+    """
+    status = LEAVE_REQUEST_STATUS_MAP.get(leave_request.request_type, "Ausente")
+    note_text = f"Solicitud {note_suffix}: {leave_request.request_type}"
+    current_date = leave_request.start_date
+
+    while current_date <= leave_request.end_date:
+        existing_status = EmployeeStatus.query.filter_by(
+            user_id=leave_request.user_id,
+            date=current_date
+        ).first()
+
+        if existing_status:
+            existing_status.status = status
+            existing_status.request_type = leave_request.request_type
+            existing_status.notes = note_text
+            if admin_notes:
+                existing_status.admin_notes = admin_notes
+        else:
+            new_status = EmployeeStatus(
+                client_id=leave_request.client_id,
+                user_id=leave_request.user_id,
+                date=current_date,
+                status=status,
+                request_type=leave_request.request_type,
+                notes=note_text,
+                admin_notes=admin_notes if admin_notes else None
+            )
+            db.session.add(new_status)
+
+        current_date += timedelta(days=1)
 
 # --------------------------------------------------------------------
 #  UTILIDADES
@@ -1180,6 +1229,8 @@ def api_events():
     }
 
     events = []
+
+    # Agregar eventos de EmployeeStatus
     for es in q.all():
         # Determinar color: si hay request_type, usarlo; si no, usar status
         color_key = es.request_type if es.request_type else es.status
@@ -1206,6 +1257,55 @@ def api_events():
             },
             "allDay": True
         })
+
+    # Agregar eventos de LeaveRequest (solicitudes de baja/ausencia/vacaciones)
+    # Solo incluir solicitudes aprobadas o recibidas
+    lr_query = LeaveRequest.query.join(User).filter(
+        User.role.is_(None),  # Solo empleados
+        LeaveRequest.status.in_(["Aprobado", "Recibido"])  # Solo aprobadas o recibidas
+    )
+
+    # Aplicar mismo filtro de centro que EmployeeStatus
+    centro_admin = get_admin_centro()
+    if centro_admin:
+        lr_query = lr_query.filter(User.center_id == centro_admin)
+    elif centro:
+        center_id = get_center_id_by_name(centro)
+        if center_id:
+            lr_query = lr_query.filter(User.center_id == center_id)
+
+    if user_id:
+        lr_query = lr_query.filter(LeaveRequest.user_id == user_id)
+
+    # Filtrar por rango de fechas (incluir cualquier solicitud que se superponga con el rango)
+    if start_date and end_date:
+        lr_query = lr_query.filter(
+            LeaveRequest.start_date <= end_date,
+            LeaveRequest.end_date >= start_date
+        )
+
+    # Para cada LeaveRequest, crear un evento para cada día del rango
+    for lr in lr_query.all():
+        current_date = lr.start_date
+        while current_date <= lr.end_date:
+            color = color_map.get(lr.request_type, "#9ca3af")
+            events.append({
+                "id": f"lr_{lr.id}_{current_date.isoformat()}",  # ID único para cada día
+                "title": f"{lr.request_type} - {lr.user.full_name or lr.user.username}",
+                "start": current_date.isoformat(),
+                "color": color,
+                "extendedProps": {
+                    "notes": lr.reason,
+                    "admin_notes": lr.admin_notes,
+                    "username": lr.user.full_name or lr.user.username,
+                    "category": lr.user.category.name if lr.user.category else "-",
+                    "filterStatus": lr.request_type,
+                    "status": lr.status
+                },
+                "allDay": True
+            })
+            current_date += timedelta(days=1)
+
     return jsonify(events)
 
 @admin_bp.route("/api/employees")
@@ -1511,20 +1611,6 @@ def leave_requests():
 
     pending_requests = query.order_by(LeaveRequest.created_at.desc()).all()
 
-    # Marcar solicitudes de bajas/ausencias como "Recibido" cuando el admin las ve
-    leave_types = ["Baja médica", "Ausencia justificada", "Ausencia injustificada"]
-    for leave_req in pending_requests:
-        if leave_req.request_type in leave_types and leave_req.status == "Enviado":
-            leave_req.status = "Recibido"
-            leave_req.read_by_admin = True
-            leave_req.read_date = datetime.now()
-
-    # Guardar cambios si hubo actualizaciones
-    try:
-        db.session.commit()
-    except:
-        db.session.rollback()
-
     # Obtener historial de solicitudes procesadas para la fecha filtrada
     history_query = (
         LeaveRequest.query
@@ -1584,7 +1670,8 @@ def leave_requests():
         next_date=next_date,
         today_iso=today_iso,
         is_today=is_today,
-        centro_admin=centro_admin
+        centro_admin=centro_admin,
+        receipt_only_types=list(LEAVE_TYPES_RECEIPT_ONLY)
     )
 
 
@@ -1621,44 +1708,8 @@ def approve_leave_request(request_id):
         if admin_notes:
             leave_request.admin_notes = admin_notes
 
-        # Crear EmployeeStatus para los días solicitados
-        status_map = {
-            "Vacaciones": "Vacaciones",
-            "Baja médica": "Baja",
-            "Ausencia justificada": "Ausente",
-            "Ausencia injustificada": "Ausente",
-            "Permiso especial": "Vacaciones"
-        }
-
-        status = status_map.get(leave_request.request_type, "Ausente")
-        current_date = leave_request.start_date
-
-        while current_date <= leave_request.end_date:
-            # Verificar si ya existe un status para ese día
-            existing_status = EmployeeStatus.query.filter_by(
-                user_id=leave_request.user_id,
-                date=current_date
-            ).first()
-
-            if existing_status:
-                existing_status.status = status
-                existing_status.request_type = leave_request.request_type
-                existing_status.notes = f"Solicitud aprobada: {leave_request.request_type}"
-                if admin_notes:
-                    existing_status.admin_notes = admin_notes
-            else:
-                new_status = EmployeeStatus(
-                    client_id=leave_request.client_id,  # Multi-tenant: obtener de la solicitud
-                    user_id=leave_request.user_id,
-                    date=current_date,
-                    status=status,
-                    request_type=leave_request.request_type,
-                    notes=f"Solicitud aprobada: {leave_request.request_type}",
-                    admin_notes=admin_notes if admin_notes else None
-                )
-                db.session.add(new_status)
-
-            current_date += timedelta(days=1)
+        # Crear/actualizar EmployeeStatus para los días solicitados
+        apply_leave_request_statuses(leave_request, admin_notes=admin_notes, note_suffix="aprobada")
 
         db.session.commit()
 
@@ -1673,6 +1724,59 @@ def approve_leave_request(request_id):
         if is_ajax:
             return jsonify({"success": False, "error": str(e)}), 500
         flash(f"Error al aprobar la solicitud: {str(e)}", "danger")
+
+    return redirect(url_for("admin.leave_requests"))
+
+
+@admin_bp.route("/leave_requests/mark_received/<int:request_id>", methods=["POST"])
+@admin_required
+def mark_leave_request_received(request_id):
+    """Marcar solicitudes sensibles (bajas/ausencias) como recibidas tras revisión manual."""
+    is_ajax = request.headers.get('Accept', '').find('application/json') != -1
+
+    try:
+        centro_admin = get_admin_centro()
+        leave_request = LeaveRequest.query.get_or_404(request_id)
+
+        if leave_request.request_type not in LEAVE_TYPES_RECEIPT_ONLY:
+            msg = "Solo las bajas y ausencias pueden marcarse como 'Recibido'."
+            if is_ajax:
+                return jsonify({"success": False, "error": msg}), 400
+            flash(msg, "warning")
+            return redirect(url_for("admin.leave_requests"))
+
+        if leave_request.status not in ("Pendiente", "Enviado"):
+            msg = "Esta solicitud ya fue gestionada previamente."
+            if is_ajax:
+                return jsonify({"success": False, "error": msg}), 400
+            flash(msg, "info")
+            return redirect(url_for("admin.leave_requests"))
+
+        if centro_admin:
+            user = User.query.get(leave_request.user_id)
+            if user.center_id != centro_admin:
+                if is_ajax:
+                    return jsonify({"success": False, "error": "No tienes permisos para gestionar esta solicitud."}), 403
+                flash("No tienes permisos para gestionar esta solicitud.", "danger")
+                return redirect(url_for("admin.leave_requests"))
+
+        leave_request.status = "Recibido"
+        leave_request.read_by_admin = True
+        leave_request.read_date = datetime.now()
+
+        apply_leave_request_statuses(leave_request, admin_notes=leave_request.admin_notes, note_suffix="recibida")
+        db.session.commit()
+
+        if is_ajax:
+            return jsonify({"success": True, "message": "Solicitud marcada como recibida."})
+
+        flash("Solicitud marcada como recibida.", "success")
+
+    except Exception as e:
+        db.session.rollback()
+        if is_ajax:
+            return jsonify({"success": False, "error": str(e)}), 500
+        flash(f"Error al marcar como recibida: {str(e)}", "danger")
 
     return redirect(url_for("admin.leave_requests"))
 
