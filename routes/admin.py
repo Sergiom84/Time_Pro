@@ -1368,6 +1368,22 @@ def manage_employee_status(user_id):
 @admin_required
 def delete_employee_status(user_id, status_id):
     status = EmployeeStatus.query.get_or_404(status_id)
+
+    # Si el EmployeeStatus fue creado por una solicitud de baja/ausencia, marcar la solicitud como cancelada
+    if status.request_type:
+        # Buscar la LeaveRequest correspondiente
+        leave_request = LeaveRequest.query.filter(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.request_type == status.request_type,
+            LeaveRequest.start_date <= status.date,
+            LeaveRequest.end_date >= status.date,
+            LeaveRequest.status.in_(["Pendiente", "Aprobado"])
+        ).first()
+
+        if leave_request:
+            # Marcar como cancelado en lugar de eliminar (mantiene registro)
+            leave_request.status = "Cancelado"
+
     db.session.delete(status)
     db.session.commit()
     flash("Estado eliminado correctamente.", "success")
@@ -1560,10 +1576,11 @@ def leave_requests():
     pending_requests = query.order_by(LeaveRequest.created_at.desc()).all()
 
     # Obtener historial de solicitudes procesadas para la fecha filtrada
+    # No mostramos "Cancelado" porque se usan para rastrear cuando se elimina un EmployeeStatus
     history_query = (
         LeaveRequest.query
         .join(User, LeaveRequest.user_id == User.id)
-        .filter(LeaveRequest.status.in_(["Aprobado", "Rechazado", "Cancelado"]))
+        .filter(LeaveRequest.status.in_(["Aprobado", "Rechazado"]))
     )
 
     # Aplicar filtros al historial
