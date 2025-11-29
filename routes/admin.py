@@ -1135,9 +1135,8 @@ def api_events():
     centro_admin = get_admin_centro()
     if centro_admin:
         # Filtrar por centro dinámico usando center_id
-        center_id = get_center_id_by_name(centro_admin)
-        if center_id:
-            q = q.filter(User.center_id == center_id)
+        # centro_admin es ya un center_id (INTEGER), no un nombre
+        q = q.filter(User.center_id == centro_admin)
     elif centro:
         # Si no hay centro del admin, permitir filtrar por parámetro opcional
         # Filtrar por centro dinámico usando center_id
@@ -1206,9 +1205,8 @@ def api_employees():
     centro_admin = get_admin_centro()
     if centro_admin:
         # Filtrar por centro dinámico usando center_id
-        center_id = get_center_id_by_name(centro_admin)
-        if center_id:
-            query = query.filter(User.center_id == center_id)
+        # centro_admin es ya un center_id (INTEGER), no un nombre
+        query = query.filter(User.center_id == centro_admin)
     elif centro:
         # Filtrar por centro dinámico usando center_id
         center_id = get_center_id_by_name(centro)

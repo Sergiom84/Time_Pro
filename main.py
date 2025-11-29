@@ -42,6 +42,9 @@ except ImportError as e:
     print(f"APScheduler not available: {e}", file=sys.stderr)
     SCHEDULER_AVAILABLE = False
 
+# Versión de arranque para diagnóstico de despliegues
+APP_VERSION = "2025-11-28-2"
+
 # Crear instancia de la app Flask
 app = Flask(
     __name__,
@@ -139,6 +142,18 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('
 # Inicializar extensiones
 db.init_app(app)
 mail = Mail(app)
+
+# Log de diagnóstico para confirmar columnas efectivas en el modelo User en tiempo de ejecución
+try:
+    from models.models import User
+    print(
+        f"*** Time_Pro version {APP_VERSION} loaded ***",
+        f"User columns at startup: {[c.name for c in User.__table__.columns]}",
+        sep="\n",
+        flush=True
+    )
+except Exception as e:
+    print(f"[WARN] Could not log User columns at startup: {e}", flush=True)
 
 # Configurar filtrado automático multi-tenant
 from utils.multitenant import setup_multitenant_filters
