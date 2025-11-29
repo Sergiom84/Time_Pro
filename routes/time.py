@@ -599,11 +599,8 @@ def create_leave_request():
 
         db.session.commit()
 
-        # Determinar el mensaje según el tipo de solicitud
-        if request_type in leave_types:
-            message = "Solicitud enviada correctamente"
-        else:
-            message = "Solicitud enviada y pendiente de aprobación"
+        # Mensaje unificado: todas las solicitudes requieren aprobación
+        message = "Solicitud enviada correctamente. Pendiente de aprobación del administrador"
 
         response_data = {
             "success": True,
