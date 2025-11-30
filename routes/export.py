@@ -58,11 +58,8 @@ def get_user_category_label(user, default="-"):
     """Obtiene el nombre legible de la categoría del usuario."""
     if not user:
         return default
-    if getattr(user, "category", None):
+    if user.category:
         return user.category.name
-    legacy = getattr(user, "categoria", None)
-    if legacy:
-        return legacy
     return default
 
 # Decorator to check if user is admin
