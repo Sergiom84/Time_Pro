@@ -23,9 +23,10 @@ def _force_ipv4_getaddrinfo(*args, **kwargs):
     return _original_getaddrinfo(*args, **kwargs)
 socket.getaddrinfo = _force_ipv4_getaddrinfo
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request, abort
 from flask_socketio import SocketIO, emit
 from flask_mail import Mail
+from flask_talisman import Talisman
 from models.database import db
 from flask_migrate import Migrate, upgrade as migrate_upgrade
 from routes.auth import auth_bp
@@ -33,6 +34,7 @@ from routes.time import time_bp
 from routes.admin import admin_bp
 from routes.export import export_bp
 import plan_config  # Sistema de configuración multi-plan
+from utils.logging_utils import mask_dsn
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -49,11 +51,15 @@ APP_VERSION = "2025-11-28-2"
 app = Flask(
     __name__,
     static_folder='static',
-    template_folder='src/templates'
+    template_folder='templates'
 )
 
 # Configuración general
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or os.urandom(24).hex()
+# Endure CSRF/CSWSH mitigations via cookies
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('PREFER_SECURE_COOKIES', 'False').lower() == 'true'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 # Configuración de límite de tamaño de petición HTTP
 # Permitir archivos de hasta 16MB en las peticiones HTTP
@@ -77,17 +83,19 @@ if not uri:
 uri = uri.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 
-def _mask_dsn(dsn: str) -> str:
-    try:
-        from urllib.parse import urlparse
-        p = urlparse(dsn)
-        if p.password:
-            return dsn.replace(p.password, "****")
-        return dsn
-    except Exception:
-        return dsn
+print("Usando BD:", mask_dsn(app.config['SQLALCHEMY_DATABASE_URI']), file=sys.stderr)
 
-print("Usando BD:", _mask_dsn(app.config['SQLALCHEMY_DATABASE_URI']), file=sys.stderr)
+#########################
+# Seguridad HTTP
+#########################
+
+# Configurar Flask-Talisman para cabeceras de seguridad
+force_https = os.getenv('FORCE_HTTPS', 'False').lower() == 'true'
+Talisman(
+    app,
+    content_security_policy=None,  # CSP desactivada por ahora para no romper recursos
+    force_https=force_https
+)
 
 # Configure SQLAlchemy engine options based on environment
 is_production = os.getenv('DYNO') or os.getenv('RENDER')
@@ -143,6 +151,9 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('
 db.init_app(app)
 mail = Mail(app)
 
+# Configurar headers de seguridad con Flask-Talisman
+Talisman(app, force_https=False)  # force_https=True en producción con HTTPS
+
 # Log de diagnóstico para confirmar columnas efectivas en el modelo User en tiempo de ejecución
 try:
     from models.models import User
@@ -160,8 +171,14 @@ from utils.multitenant import setup_multitenant_filters
 with app.app_context():
     setup_multitenant_filters(app, db)
 
-# Inicializar SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# Inicializar SocketIO con orígenes permitidos explícitos (evita CSWSH)
+_allowed_origins = {
+    origin.strip().rstrip('/')
+    for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+}
+_allowed_origins.update({"http://localhost:5000", "http://127.0.0.1:5000"})
+socketio = SocketIO(app, cors_allowed_origins=list(_allowed_origins), async_mode='eventlet')
 
 # Log rápido del driver efectivo
 try:
@@ -173,8 +190,12 @@ except Exception:
 @app.before_request
 def _log_db_on_request():
     try:
-        from flask import request
-        print(f"[REQ] {request.method} {request.path} -> engine={db.engine.url.drivername} url={db.engine.url}", file=sys.stderr, flush=True)
+        print(
+            f"[REQ] {request.method} {request.path} -> "
+            f"engine={db.engine.url.drivername} url={mask_dsn(str(db.engine.url))}",
+            file=sys.stderr,
+            flush=True
+        )
     except Exception as e:
         print(f"[REQ] engine-info error: {e}", file=sys.stderr, flush=True)
 
@@ -184,6 +205,17 @@ migrate = Migrate(app, db)
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db.session.remove()
+
+# Rechazar peticiones mutables desde orígenes no permitidos (mitiga CSRF/CSWSH)
+@app.before_request
+def _enforce_origin_for_state_changing():
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("Origin")
+        if origin:
+            origin_norm = origin.rstrip('/')
+            host_norm = request.host_url.rstrip('/')
+            if origin_norm != host_norm and origin_norm not in _allowed_origins:
+                abort(403)
 
 # Context processor para hacer disponible el usuario actual, saludo y configuración del plan
 @app.context_processor

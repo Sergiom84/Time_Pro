@@ -1,13 +1,17 @@
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, flash, session, jsonify
+    url_for, flash, session, jsonify, abort
 )
 from functools import wraps
 from datetime import datetime, date, timedelta
 from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause, Category, Center
+from services.category_service import CategoryService
+from services.exceptions import ResourceNotFound, ResourceAlreadyExists, ValidationError, OperationNotAllowed
 from models.database import db
 import plan_config  # Sistema de configuración multi-plan
 from utils.multitenant import get_client_config
+from utils.auth_decorators import admin_required
+from utils.helpers import format_timedelta
 
 admin_bp = Blueprint(
     "admin", __name__,
@@ -39,7 +43,7 @@ def get_categorias_disponibles():
     if not client_id:
         return []
 
-    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
+    categories = CategoryService.get_all(client_id)
     return [c.name for c in categories]
 
 def get_category_objects():
@@ -51,8 +55,7 @@ def get_category_objects():
     if not client_id:
         return []
 
-    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
-    return categories
+    return CategoryService.get_all(client_id)
 
 def get_category_id_by_name(category_name):
     """
@@ -66,7 +69,8 @@ def get_category_id_by_name(category_name):
     if not client_id:
         return None
 
-    category = Category.query.filter_by(client_id=client_id, name=category_name).first()
+    # Usar el servicio para buscar por nombre
+    category = CategoryService.get_by_name(category_name, client_id)
     return category.id if category else None
 
 
@@ -135,8 +139,6 @@ def get_center_id_by_name(center_name):
         center = Center.query.filter_by(client_id=client_id, name=center_name).first()
     return center.id if center else None
 
-    return None
-
 def apply_leave_request_statuses(leave_request, admin_notes=None, note_suffix="aprobada"):
     """
     Crea o actualiza registros EmployeeStatus seg�n el tipo de solicitud.
@@ -176,17 +178,6 @@ def apply_leave_request_statuses(leave_request, admin_notes=None, note_suffix="a
 # --------------------------------------------------------------------
 #  UTILIDADES
 # --------------------------------------------------------------------
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user = User.query.get(session.get("user_id"))
-        # Verificar que el usuario tenga rol de admin o super_admin
-        if not user or not user.role or user.role not in ('admin', 'super_admin'):
-            session.clear()
-            flash("Sin permisos de administrador.", "danger")
-            return redirect(url_for("auth.login"))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # Centro del admin actual (None implica super admin con acceso global)
 
@@ -275,14 +266,6 @@ def can_grant_super_admin():
         return False
     client = u.client
     return client and client.plan == 'pro'
-
-def format_timedelta(td):
-    if td is None:
-        return "-"
-    total_seconds = int(td.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    return f"{hours:02}:{minutes:02}"
 
 # --------------------------------------------------------------------
 #  DASHBOARD
@@ -709,7 +692,7 @@ def manage_categories():
         flash("No se pudo determinar el cliente activo.", "danger")
         return redirect(url_for("admin.manage_users"))
 
-    categories = Category.query.filter_by(client_id=client_id).order_by(Category.name).all()
+    categories = CategoryService.get_all(client_id)
     return render_template("manage_categories.html", categories=categories)
 
 
@@ -726,25 +709,13 @@ def add_category():
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip()
 
-        if not name:
-            flash("El nombre de la categoría es obligatorio.", "danger")
+        try:
+            CategoryService.create(client_id, name, description)
+            flash(f"Categoría '{name}' creada exitosamente.", "success")
+            return redirect(url_for("admin.manage_categories"))
+        except (ValidationError, ResourceAlreadyExists) as e:
+            flash(str(e), "danger")
             return render_template("category_form.html", category=None, action="add")
-
-        # Verificar que no existe una categoría con el mismo nombre para este cliente
-        existing = Category.query.filter_by(client_id=client_id, name=name).first()
-        if existing:
-            flash(f"Ya existe una categoría con el nombre '{name}'.", "danger")
-            return render_template("category_form.html", category=None, action="add")
-
-        category = Category(
-            client_id=client_id,
-            name=name,
-            description=description
-        )
-        db.session.add(category)
-        db.session.commit()
-        flash(f"Categoría '{name}' creada exitosamente.", "success")
-        return redirect(url_for("admin.manage_categories"))
 
     return render_template("category_form.html", category=None, action="add")
 
@@ -753,9 +724,12 @@ def add_category():
 @admin_required
 def edit_category(category_id):
     """Editar categoría"""
-    category = Category.query.get_or_404(category_id)
+    category = CategoryService.get_by_id(category_id, session.get("client_id"))
+    if not category:
+        abort(404)
 
-    # Verificar que el usuario tenga permiso para editar esta categoría
+    # Verificación de permiso ya hecha en get_by_id (retorna None si no es del cliente)
+    # pero mantenemos coherencia si se usara get_or_404
     if category.client_id != session.get("client_id"):
         flash("No tienes permiso para editar esta categoría.", "danger")
         return redirect(url_for("admin.manage_categories"))
@@ -764,25 +738,13 @@ def edit_category(category_id):
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip()
 
-        if not name:
-            flash("El nombre de la categoría es obligatorio.", "danger")
+        try:
+            CategoryService.update(category_id, category.client_id, name, description)
+            flash(f"Categoría '{name}' actualizada exitosamente.", "success")
+            return redirect(url_for("admin.manage_categories"))
+        except (ValidationError, ResourceAlreadyExists, ResourceNotFound) as e:
+            flash(str(e), "danger")
             return render_template("category_form.html", category=category, action="edit")
-
-        # Verificar que no existe otra categoría con el mismo nombre para este cliente
-        existing = Category.query.filter(
-            Category.client_id == category.client_id,
-            Category.name == name,
-            Category.id != category_id
-        ).first()
-        if existing:
-            flash(f"Ya existe otra categoría con el nombre '{name}'.", "danger")
-            return render_template("category_form.html", category=category, action="edit")
-
-        category.name = name
-        category.description = description
-        db.session.commit()
-        flash(f"Categoría '{name}' actualizada exitosamente.", "success")
-        return redirect(url_for("admin.manage_categories"))
 
     return render_template("category_form.html", category=category, action="edit")
 
@@ -791,24 +753,15 @@ def edit_category(category_id):
 @admin_required
 def delete_category(category_id):
     """Eliminar categoría"""
-    category = Category.query.get_or_404(category_id)
-
-    # Verificar que el usuario tenga permiso para eliminar esta categoría
-    if category.client_id != session.get("client_id"):
-        flash("No tienes permiso para eliminar esta categoría.", "danger")
-        return redirect(url_for("admin.manage_categories"))
-
-    # Verificar que no hay usuarios usando esta categoría
-    users_count = User.query.filter_by(category_id=category_id).count()
-    if users_count > 0:
-        flash(f"No puedes eliminar esta categoría porque está siendo utilizada por {users_count} usuario(s).", "danger")
-        return redirect(url_for("admin.manage_categories"))
-
-    name = category.name
-    db.session.delete(category)
-    db.session.commit()
-    flash(f"Categoría '{name}' eliminada.", "success")
+    try:
+        CategoryService.delete(category_id, session.get("client_id"))
+        flash("Categoría eliminada exitosamente.", "success")
+    except (ResourceNotFound, OperationNotAllowed) as e:
+        flash(str(e), "danger")
+    
     return redirect(url_for("admin.manage_categories"))
+
+
 
 
 # ----
@@ -1535,15 +1488,6 @@ def leave_requests():
     # Obtener filtros de la URL
     filter_centro = request.args.get("centro", "all")
     filter_categoria = request.args.get("categoria", "all")
-    filter_categoria_id, filter_categoria_none = parse_category_filter(
-        filter_categoria if filter_categoria != "all" else ""
-    )
-    filter_categoria_id, filter_categoria_none = parse_category_filter(
-        filter_categoria if filter_categoria != "all" else ""
-    )
-    filter_categoria_id, filter_categoria_none = parse_category_filter(
-        filter_categoria if filter_categoria != "all" else ""
-    )
     filter_categoria_id, filter_categoria_none = parse_category_filter(
         filter_categoria if filter_categoria != "all" else ""
     )

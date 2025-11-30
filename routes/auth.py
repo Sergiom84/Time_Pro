@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from werkzeug.security import check_password_hash
 from models.models import User, Client
 from models.database import db
+from utils.logging_utils import mask_dsn
 
 auth_bp = Blueprint("auth", __name__)  # Usa la carpeta global de templates
 
@@ -29,9 +30,15 @@ def login():
             return render_template("login.html", client_identifier=client_identifier)
 
         try:
-            # Debug: imprimir motor y URL efectiva (forzamos flush)
+            # Debug: imprimir motor y URL efectiva sin credenciales (forzamos flush)
             from sqlalchemy import text
-            print("[LOGIN] engine:", db.engine.url.drivername, "url:", str(db.engine.url), flush=True)
+            print(
+                "[LOGIN] engine:",
+                db.engine.url.drivername,
+                "url:",
+                mask_dsn(str(db.engine.url)),
+                flush=True
+            )
             # Probar una consulta trivial a Postgres para forzar el bind real
             db.session.execute(text("SELECT 1"))
             print("[LOGIN] SELECT 1 ok", flush=True)
@@ -42,7 +49,13 @@ def login():
         except Exception as e:
             # Registrar detalles del engine si la query falla
             try:
-                print("[LOGIN] on-query engine:", db.engine.url.drivername, "url:", str(db.engine.url), flush=True)
+                print(
+                    "[LOGIN] on-query engine:",
+                    db.engine.url.drivername,
+                    "url:",
+                    mask_dsn(str(db.engine.url)),
+                    flush=True
+                )
             except Exception:
                 pass
             raise
@@ -123,7 +136,7 @@ def register():
             username=username,
             full_name=full_name,
             email=email,
-            is_admin=True
+            role='admin'  # usuario que se registra pasa a ser administrador del cliente
         )
         nuevo_usuario.set_password(password)
         db.session.add(nuevo_usuario)
@@ -160,21 +173,4 @@ def get_current_client():
         "is_active": client.is_active
     })
 
-from functools import wraps
-from flask import session, redirect, url_for, flash
-from models.models import User  # agrega si no existe
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("is_admin"):
-            flash("Acceso no autorizado. Se requieren permisos de administrador.", "danger")
-            return redirect(url_for("auth.login"))
-        # Check if user still exists and is admin in DB for extra seguridad
-        user = User.query.get(session.get("user_id"))
-        if not user or not user.role:
-            session.clear()
-            flash("Tu cuenta ya no tiene permisos de administrador.", "danger")
-            return redirect(url_for("auth.login"))
-        return f(*args, **kwargs)
-    return decorated_function
+from utils.auth_decorators import admin_required

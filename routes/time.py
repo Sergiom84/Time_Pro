@@ -10,20 +10,10 @@ import calendar
 from models.models import TimeRecord, User, EmployeeStatus, WorkPause, LeaveRequest
 from models.database import db
 from utils.file_utils import upload_file_to_supabase, validate_file
+from utils.xss_utils import sanitize_text
+from utils.helpers import format_timedelta
 
 time_bp = Blueprint("time", __name__)
-
-
-# ------------------------------------------------------------------
-#  UTILIDAD
-# ------------------------------------------------------------------
-def format_timedelta(td):
-    if td is None:
-        return "-"
-    total_seconds = int(td.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    return f"{hours:02}:{minutes:02}"
 
 
 # ------------------------------------------------------------------
@@ -76,8 +66,11 @@ def check_in():
                 "warning"
             )
         else:
+            client_id = session.get("client_id")
+            if not client_id:
+                flash("No se pudo determinar tu empresa. Inicia sesión nuevamente.", "danger")
+                return redirect(url_for("auth.login"))
             now = datetime.now()
-            client_id = session.get("client_id", 1)  # Multi-tenant: obtener client_id de la sesión
 
             # --- crear TimeRecord ---
             new_rec = TimeRecord(
@@ -134,7 +127,7 @@ def check_out():
         if open_record:
             now = datetime.now()
             open_record.check_out = now
-            open_record.notes = request.form.get("notes", "")
+            open_record.notes = sanitize_text(request.form.get("notes", ""))
             db.session.commit()
             flash("Salida registrada correctamente.", "success")
         else:
@@ -410,15 +403,20 @@ def start_pause():
                 "error": "Ya tienes una pausa activa. Debes finalizarla antes de iniciar otra."
             })
 
+        client_id = session.get("client_id")
+        if not client_id:
+            return jsonify({
+                "success": False,
+                "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."
+            }), 401
         # Crear nueva pausa
-        client_id = session.get("client_id", 1)  # Multi-tenant
         new_pause = WorkPause(
             client_id=client_id,
             user_id=user_id,
             time_record_id=today_record.id,
             pause_type=data.get("pause_type", "Descanso"),
             pause_start=datetime.now(),
-            notes=data.get("notes", "")
+            notes=sanitize_text(data.get("notes", ""))
         )
 
         # Si hay archivo adjunto, subirlo a Supabase Storage
@@ -546,15 +544,20 @@ def create_leave_request():
         status = "Pendiente"
         approval_date = None
 
+        client_id = session.get("client_id")
+        if not client_id:
+            return jsonify({
+                "success": False,
+                "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."
+            }), 401
         # Crear nueva solicitud
-        client_id = session.get("client_id", 1)  # Multi-tenant
         new_request = LeaveRequest(
             client_id=client_id,
             user_id=user_id,
             request_type=request_type,
             start_date=start_date,
             end_date=end_date,
-            reason=data.get("reason", ""),
+            reason=sanitize_text(data.get("reason", "")),
             status=status,
             approval_date=approval_date
         )
