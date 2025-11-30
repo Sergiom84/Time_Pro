@@ -1,7 +1,7 @@
 """Add request_type column to EmployeeStatus for tracking leave request types
 
 Revision ID: add_request_type_001
-Revises: add_role_001
+Revises: change_centro_to_fk_001
 Create Date: 2025-11-13 00:00:00.000000
 
 This migration adds a request_type column to track the original type of leave request
