@@ -144,36 +144,37 @@ document.addEventListener('DOMContentLoaded', () => {
     eventDisplay: 'block',
 
     events(info, success, fail) {
-      /* 1)  Obtener los eventos del back-end con los filtros básicos   */
+      if (activeStatuses.length === 0) {
+        success([]);
+        return;
+      }
       const params = new URLSearchParams({
         ...baseQuery,
         start: info.startStr,
-        end: info.endStr
+        end: info.endStr,
+        statuses: activeStatuses.join(',')
       });
       fetch('/admin/api/events?' + params.toString())
         .then(r => r.json())
-        /* 2)  Filtrado por estado en cliente                         */
-        .then(events => {
-          const filtered = events.filter(ev => {
-            const status = ev.title.split(' - ')[0]; // «Trabajado - Pepe»
-            const filterStatus = ev.extendedProps?.filterStatus || status;
-            return activeStatuses.includes(filterStatus);
-          });
-          success(filtered);
-        })
+        .then(events => success(events))
         .catch(fail);
     },
 
     eventClick(info) {
       const p   = info.event.extendedProps;
-      const noteText = p.admin_notes || p.notes;
-      alert(
-        `Empleado : ${p.username}\n` +
-        `Fecha    : ${info.event.startStr}\n` +
-        `Estado   : ${info.event.title.split(' - ')[0]}\n` +
-        `Categoría: ${p.category || ''}\n` +
-        (noteText ? `Notas    : ${noteText}` : '')
-      );
+      const lines = [
+        `Empleado : ${p.username}`,
+        `Fecha    : ${info.event.startStr}`,
+        `Estado   : ${info.event.title.split(' - ')[0]}`,
+        `Categoría: ${p.category || ''}`
+      ];
+      if (p.notes) {
+        lines.push(`Notas empleado : ${p.notes}`);
+      }
+      if (p.admin_notes) {
+        lines.push(`Notas admin    : ${p.admin_notes}`);
+      }
+      alert(lines.join('\n'));
     }
   });
 
