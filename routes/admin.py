@@ -1248,7 +1248,7 @@ def api_events():
 
         events.append({
             "id": es.id,
-            "title": f"{es.status} - {es.user.full_name or es.user.username}",
+            "title": f"{es.request_type if es.request_type else es.status} - {es.user.full_name or es.user.username}",
             "start": es.date.isoformat(),
             "color": color,
             "extendedProps": {
