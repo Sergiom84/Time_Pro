@@ -1,7 +1,7 @@
 """Add multi-tenant support: Client table and client_id fields
 
 Revision ID: add_multitenant_001
-Revises: create_email_log_20251106
+Revises: create_email_log_table
 Create Date: 2025-11-08 14:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_multitenant_001'
-down_revision = 'create_email_log_20251106'
+down_revision = 'create_email_log_table'
 branch_labels = None
 depends_on = None
 

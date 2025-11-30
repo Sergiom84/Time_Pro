@@ -1,6 +1,6 @@
 """Crear tabla email_notification_log
 
-Revision ID: create_email_log_20251106
+Revision ID: create_email_log_table
 Revises: b6ca4ef471ba
 Create Date: 2025-11-06 14:30:00
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'create_email_log_20251106'
+revision = 'create_email_log_table'
 down_revision = 'b6ca4ef471ba'
 branch_labels = None
 depends_on = None
