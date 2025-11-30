@@ -5,7 +5,7 @@ coherencia en verificación de permisos.
 """
 
 from functools import wraps
-from flask import session, redirect, url_for, flash
+from flask import session, redirect, url_for, flash, request, jsonify
 from models.models import User
 
 
@@ -29,5 +29,45 @@ def admin_required(f):
             session.clear()
             flash("Sin permisos de administrador.", "danger")
             return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def client_required(f):
+    """
+    Decorador que requiere client_id válido en sesión.
+    Inyecta client_id como parámetro a la función decorada.
+
+    Valida que:
+    - El usuario esté autenticado
+    - Tenga client_id en la sesión
+
+    Si falta client_id:
+    - Para peticiones JSON (APIs): retorna 401 JSON
+    - Para peticiones HTML: redirige al login con mensaje flash
+
+    Ejemplo de uso:
+        @app.route("/check_in", methods=["POST"])
+        @client_required
+        def check_in(client_id):
+            # client_id fue inyectado automáticamente
+            record = TimeRecord(client_id=client_id, ...)
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        client_id = session.get("client_id")
+        if not client_id:
+            # Detectar si es petición JSON (API) o HTML (formulario)
+            if request.is_json:
+                return jsonify({
+                    "success": False,
+                    "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."
+                }), 401
+            else:
+                flash("No se pudo determinar tu empresa. Inicia sesión nuevamente.", "danger")
+                return redirect(url_for("auth.login"))
+
+        # Inyectar client_id en kwargs para que la función lo reciba
+        kwargs['client_id'] = client_id
         return f(*args, **kwargs)
     return decorated_function

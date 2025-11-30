@@ -12,6 +12,8 @@ from models.database import db
 from utils.file_utils import upload_file_to_supabase, validate_file
 from utils.xss_utils import sanitize_text
 from utils.helpers import format_timedelta
+from utils.auth_decorators import client_required
+from utils.query_helpers import time_records_query, employee_status_query, work_pauses_query, leave_requests_query
 
 time_bp = Blueprint("time", __name__)
 
@@ -20,24 +22,30 @@ time_bp = Blueprint("time", __name__)
 #  FICHAR ENTRADA
 # ------------------------------------------------------------------
 @time_bp.route("/check_in", methods=["POST"])
-def check_in():
+@client_required
+def check_in(client_id):
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
     user_id = session["user_id"]
 
-     # BUSCA REGISTRO ABIERTO
-    existing_open = TimeRecord.query.filter_by(user_id=user_id, check_out=None).order_by(desc(TimeRecord.id)).first()
+    # BUSCA REGISTRO ABIERTO
+    existing_open = time_records_query(
+        user_id=user_id,
+        include_open_only=True
+    ).order_by(desc(TimeRecord.id)).first()
+
     if existing_open:
         # Permite al usuario cerrarlo desde aquí
         flash(f"Tienes un fichaje abierto desde {existing_open.check_in.strftime('%d-%m-%Y %H:%M:%S')}. Debes cerrarlo antes de fichar entrada.", "warning")
-        # Opcional: Puedes redirigir a un formulario donde el usuario pueda cerrarlo, o incluso cerrarlo automáticamente con la hora actual.
         return redirect(url_for("time.dashboard_employee"))
 
     try:
         # 1) ¿Tiene hoy un estado NO trabajable?
-        today_status = EmployeeStatus.query.filter_by(
-            user_id=user_id, date=date.today()
+        today_status = employee_status_query(
+            user_id=user_id,
+            date=date.today()
         ).first()
+
         if today_status and today_status.status in ("Vacaciones", "Baja", "Ausente"):
             flash(
                 f"No puedes fichar — tu estado de hoy es «{today_status.status}».",
@@ -53,12 +61,11 @@ def check_in():
             )
 
         # 3) ¿Ya hay un fichaje abierto?
-        existing_open = (
-            TimeRecord.query
-            .filter_by(user_id=user_id, check_out=None)
-            .order_by(desc(TimeRecord.id))
-            .first()
-        )
+        existing_open = time_records_query(
+            user_id=user_id,
+            include_open_only=True
+        ).order_by(desc(TimeRecord.id)).first()
+
         if existing_open:
             flash(
                 f"Ya tienes un registro abierto desde "
@@ -66,10 +73,6 @@ def check_in():
                 "warning"
             )
         else:
-            client_id = session.get("client_id")
-            if not client_id:
-                flash("No se pudo determinar tu empresa. Inicia sesión nuevamente.", "danger")
-                return redirect(url_for("auth.login"))
             now = datetime.now()
 
             # --- crear TimeRecord ---
@@ -83,13 +86,12 @@ def check_in():
 
             # --- si no existe EmployeeStatus hoy, crearlo como Trabajado ---
             if not today_status:
-                user = User.query.get(user_id)
                 db.session.add(EmployeeStatus(
-                    client_id = client_id,
-                    user_id  = user_id,
-                    date     = now.date(),
-                    status   = "Trabajado",
-                    notes    = "Registro automático de fichaje"
+                    client_id=client_id,
+                    user_id=user_id,
+                    date=now.date(),
+                    status="Trabajado",
+                    notes="Registro automático de fichaje"
                 ))
 
             db.session.commit()
@@ -106,7 +108,8 @@ def check_in():
 #  FICHAR SALIDA
 # ------------------------------------------------------------------
 @time_bp.route("/check_out", methods=["POST"])
-def check_out():
+@client_required
+def check_out(client_id):
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
     user_id = session["user_id"]
@@ -118,12 +121,11 @@ def check_out():
                 text("LOCK TABLE public.time_record IN SHARE ROW EXCLUSIVE MODE")
             )
 
-        open_record = (
-            TimeRecord.query
-            .filter_by(user_id=user_id, check_out=None)
-            .order_by(desc(TimeRecord.id))
-            .first()
-        )
+        open_record = time_records_query(
+            user_id=user_id,
+            include_open_only=True
+        ).order_by(desc(TimeRecord.id)).first()
+
         if open_record:
             now = datetime.now()
             open_record.check_out = now
@@ -362,7 +364,8 @@ def get_active_pause():
 
 
 @time_bp.route("/time/pause/start", methods=["POST"])
-def start_pause():
+@client_required
+def start_pause(client_id):
     """Iniciar una pausa/descanso (con soporte para adjuntar archivos)"""
     if "user_id" not in session:
         return jsonify({"error": "No autenticado"}), 401
@@ -379,8 +382,9 @@ def start_pause():
 
     try:
         # Verificar que el usuario tiene un fichaje abierto hoy
-        today_record = TimeRecord.query.filter_by(
-            user_id=user_id,
+        today_record = time_records_query(
+            user_id=user_id
+        ).filter_by(
             date=date.today(),
             check_out=None
         ).order_by(desc(TimeRecord.id)).first()
@@ -392,9 +396,9 @@ def start_pause():
             })
 
         # Verificar que no haya una pausa activa
-        active_pause = WorkPause.query.filter_by(
+        active_pause = work_pauses_query(
             user_id=user_id,
-            pause_end=None
+            include_active_only=True
         ).first()
 
         if active_pause:
@@ -402,13 +406,6 @@ def start_pause():
                 "success": False,
                 "error": "Ya tienes una pausa activa. Debes finalizarla antes de iniciar otra."
             })
-
-        client_id = session.get("client_id")
-        if not client_id:
-            return jsonify({
-                "success": False,
-                "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."
-            }), 401
         # Crear nueva pausa
         new_pause = WorkPause(
             client_id=client_id,
@@ -510,7 +507,8 @@ def end_pause(pause_id):
 #  GESTIÓN DE SOLICITUDES DE VACACIONES/BAJAS/AUSENCIAS
 # ------------------------------------------------------------------
 @time_bp.route("/time/requests/new", methods=["POST"])
-def create_leave_request():
+@client_required
+def create_leave_request(client_id):
     """Crear nueva solicitud de vacaciones/baja/ausencia (con soporte para adjuntar archivos)"""
     if "user_id" not in session:
         return jsonify({"error": "No autenticado"}), 401
@@ -543,13 +541,6 @@ def create_leave_request():
         # Se unificó el flujo: todos los tipos usan "Pendiente" → "Aprobado"/"Rechazado"
         status = "Pendiente"
         approval_date = None
-
-        client_id = session.get("client_id")
-        if not client_id:
-            return jsonify({
-                "success": False,
-                "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."
-            }), 401
         # Crear nueva solicitud
         new_request = LeaveRequest(
             client_id=client_id,
