@@ -34,14 +34,15 @@ from routes.time import time_bp
 from routes.admin import admin_bp
 from routes.export import export_bp
 import plan_config  # Sistema de configuración multi-plan
-from utils.logging_utils import mask_dsn
+from utils.logging_utils import mask_dsn, get_logger
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
     import atexit
     SCHEDULER_AVAILABLE = True
 except ImportError as e:
-    print(f"APScheduler not available: {e}", file=sys.stderr)
+    logger = get_logger(__name__)
+    logger.warning(f"APScheduler not available: {e}")
     SCHEDULER_AVAILABLE = False
 
 # Versión de arranque para diagnóstico de despliegues
@@ -83,7 +84,8 @@ if not uri:
 uri = uri.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 
-print("Usando BD:", mask_dsn(app.config['SQLALCHEMY_DATABASE_URI']), file=sys.stderr)
+logger = get_logger(__name__)
+logger.info(f"Using database: {mask_dsn(app.config['SQLALCHEMY_DATABASE_URI'])}")
 
 #########################
 # Seguridad HTTP
@@ -157,14 +159,10 @@ Talisman(app, force_https=False)  # force_https=True en producción con HTTPS
 # Log de diagnóstico para confirmar columnas efectivas en el modelo User en tiempo de ejecución
 try:
     from models.models import User
-    print(
-        f"*** Time_Pro version {APP_VERSION} loaded ***",
-        f"User columns at startup: {[c.name for c in User.__table__.columns]}",
-        sep="\n",
-        flush=True
-    )
+    logger.info(f"Time_Pro version {APP_VERSION} loaded")
+    logger.debug(f"User columns at startup: {[c.name for c in User.__table__.columns]}")
 except Exception as e:
-    print(f"[WARN] Could not log User columns at startup: {e}", flush=True)
+    logger.warning(f"Could not log User columns at startup: {e}")
 
 # Configurar filtrado automático multi-tenant
 from utils.multitenant import setup_multitenant_filters
@@ -183,21 +181,20 @@ socketio = SocketIO(app, cors_allowed_origins=list(_allowed_origins), async_mode
 # Log rápido del driver efectivo
 try:
     with app.app_context():
-        print("Driver:", db.engine.url.drivername, file=sys.stderr)
+        logger.debug(f"Database driver: {db.engine.url.drivername}")
 except Exception:
     pass
+
 # Log de diagnóstico por request para confirmar motor/URL
 @app.before_request
 def _log_db_on_request():
     try:
-        print(
+        logger.debug(
             f"[REQ] {request.method} {request.path} -> "
-            f"engine={db.engine.url.drivername} url={mask_dsn(str(db.engine.url))}",
-            file=sys.stderr,
-            flush=True
+            f"engine={db.engine.url.drivername} url={mask_dsn(str(db.engine.url))}"
         )
     except Exception as e:
-        print(f"[REQ] engine-info error: {e}", file=sys.stderr, flush=True)
+        logger.debug(f"[REQ] engine-info error: {e}")
 
 migrate = Migrate(app, db)
 

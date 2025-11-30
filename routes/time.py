@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, flash, session, jsonify
+    url_for, flash, session, jsonify, current_app
 )
 from sqlalchemy import desc, text, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,6 +14,7 @@ from utils.xss_utils import sanitize_text
 from utils.helpers import format_timedelta
 from utils.auth_decorators import client_required
 from utils.query_helpers import time_records_query, employee_status_query, work_pauses_query, leave_requests_query
+from utils.logging_utils import get_logger
 
 time_bp = Blueprint("time", __name__)
 
@@ -571,9 +572,11 @@ def create_leave_request(client_id):
                     new_request.attachment_filename = file_data.get("filename")
                     new_request.attachment_type = file_data.get("mime_type")
                     new_request.attachment_size = file_data.get("size")
-                    print(f"✅ Archivo subido correctamente: {file_data.get('url')}")
+                    logger = get_logger(__name__)
+                    logger.info(f"File uploaded successfully: {file_data.get('url')}")
                 else:
-                    print(f"❌ Error al subir archivo: {message}")
+                    logger = get_logger(__name__)
+                    logger.warning(f"Error uploading file: {message}")
                     return jsonify({
                         "success": False,
                         "error": message
@@ -581,8 +584,9 @@ def create_leave_request(client_id):
 
             except Exception as file_error:
                 error_msg = str(file_error)
-                print(f"❌ Excepción al procesar archivo: {error_msg}")
-                print(f"   Tipo: {type(file_error).__name__}")
+                logger = get_logger(__name__)
+                logger.error(f"Exception processing file: {error_msg}")
+                logger.debug(f"Exception type: {type(file_error).__name__}")
                 return jsonify({
                     "success": False,
                     "error": error_msg

@@ -1,8 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
 from werkzeug.security import check_password_hash
 from models.models import User, Client
 from models.database import db
-from utils.logging_utils import mask_dsn
+from utils.logging_utils import mask_dsn, get_logger
 
 auth_bp = Blueprint("auth", __name__)  # Usa la carpeta global de templates
 
@@ -30,32 +30,21 @@ def login():
             return render_template("login.html", client_identifier=client_identifier)
 
         try:
-            # Debug: imprimir motor y URL efectiva sin credenciales (forzamos flush)
+            # Debug: registrar motor y URL efectiva sin credenciales
             from sqlalchemy import text
-            print(
-                "[LOGIN] engine:",
-                db.engine.url.drivername,
-                "url:",
-                mask_dsn(str(db.engine.url)),
-                flush=True
-            )
+            logger = get_logger(__name__)
+            logger.debug(f"[LOGIN] engine: {db.engine.url.drivername} url: {mask_dsn(str(db.engine.url))}")
             # Probar una consulta trivial a Postgres para forzar el bind real
             db.session.execute(text("SELECT 1"))
-            print("[LOGIN] SELECT 1 ok", flush=True)
+            logger.debug("[LOGIN] SELECT 1 ok")
         except Exception as e:
-            print("[LOGIN] connection-test error:", e, flush=True)
+            logger.debug(f"[LOGIN] connection-test error: {e}")
         try:
             user = User.query.filter_by(client_id=client.id, username=username).first()
         except Exception as e:
             # Registrar detalles del engine si la query falla
             try:
-                print(
-                    "[LOGIN] on-query engine:",
-                    db.engine.url.drivername,
-                    "url:",
-                    mask_dsn(str(db.engine.url)),
-                    flush=True
-                )
+                logger.debug(f"[LOGIN] on-query engine: {db.engine.url.drivername} url: {mask_dsn(str(db.engine.url))}")
             except Exception:
                 pass
             raise
