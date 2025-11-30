@@ -4,6 +4,7 @@ Sanitiza entradas de usuario removiendo scripts y código malicioso
 """
 
 import bleach
+import re
 
 # Tags HTML permitidos (vacío = no permite HTML)
 ALLOWED_TAGS = []
@@ -55,3 +56,76 @@ def sanitize_input(data):
             sanitized[key] = value
 
     return sanitized
+
+
+def sanitize_username(username):
+    """
+    Limpia y valida username (alfanumérico + guiones, puntos, guiones bajos).
+
+    IMPORTANTE: SOLO usar en REGISTRO de nuevos usuarios, NO en login.
+    En login, usar .strip() para no transformar credenciales existentes.
+
+    Args:
+        username: String a sanitizar
+
+    Returns:
+        Username limpio con longitud limitada a 80 caracteres
+    """
+    if not username:
+        return ""
+
+    # Strip primero
+    username = username.strip()
+
+    # Remover caracteres peligrosos (permite guiones, puntos, guiones bajos)
+    # Pattern: word chars (\w = alfanuméricos + _) + guiones + puntos
+    clean = re.sub(r'[^\w\-.]', '', username)
+
+    return clean[:80]  # Límite de longitud
+
+
+def sanitize_name(name):
+    """
+    Limpia nombres de personas (permite espacios, acentos, guiones).
+
+    IMPORTANTE: SOLO usar en REGISTRO o formularios de datos personales.
+    Los nombres con caracteres especiales ya existentes en BD no deben romperse.
+
+    Args:
+        name: String a sanitizar
+
+    Returns:
+        Nombre limpio con longitud limitada a 100 caracteres
+    """
+    if not name:
+        return ""
+
+    # Strip primero
+    name = name.strip()
+
+    # Permite letras (con acentos), espacios, guiones
+    # [\w\-] = alfanuméricos + guiones, más explícitamente permitimos acentos
+    clean = re.sub(r'[^\w\s\-áéíóúñÁÉÍÓÚÑ]', '', name)
+
+    return clean.strip()[:100]  # Strip después también, limitar longitud
+
+
+def validate_email(email):
+    """
+    Valida formato de email usando expresión regular.
+
+    Args:
+        email: String a validar
+
+    Returns:
+        True si el email tiene formato válido, False en caso contrario
+    """
+    if not email:
+        return False
+
+    email = email.strip()
+
+    # Patrón de validación de email
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+    return bool(re.match(pattern, email))

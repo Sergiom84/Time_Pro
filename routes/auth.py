@@ -3,6 +3,7 @@ from werkzeug.security import check_password_hash
 from models.models import User, Client
 from models.database import db
 from utils.logging_utils import mask_dsn, get_logger
+from utils.xss_utils import sanitize_username, sanitize_name, validate_email
 
 auth_bp = Blueprint("auth", __name__)  # Usa la carpeta global de templates
 
@@ -85,12 +86,22 @@ def logout():
 @auth_bp.route("/registro", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username         = request.form.get("username")
-        full_name        = request.form.get("full_name")
-        email            = request.form.get("email")
+        # Obtener valores del formulario
+        username         = request.form.get("username", "").strip()
+        full_name        = request.form.get("full_name", "").strip()
+        email            = request.form.get("email", "").strip()
         password         = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
         client_identifier = (request.form.get("client_identifier") or "").strip()
+
+        # Sanitizar y validar entrada (SOLO en registro, no en login)
+        username = sanitize_username(username)
+        full_name = sanitize_name(full_name)
+
+        # Validar formato de email
+        if not validate_email(email):
+            flash("El formato de email no es válido.", "danger")
+            return redirect(url_for("auth.register"))
 
         if not client_identifier:
             flash("Debes indicar el identificador de la empresa para registrarte.", "danger")
