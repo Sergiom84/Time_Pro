@@ -15,6 +15,7 @@ from utils.helpers import format_timedelta
 from utils.auth_decorators import client_required
 from utils.query_helpers import time_records_query, employee_status_query, work_pauses_query, leave_requests_query
 from utils.logging_utils import get_logger
+from utils.db_helpers import db_transaction
 
 time_bp = Blueprint("time", __name__)
 
@@ -24,6 +25,7 @@ time_bp = Blueprint("time", __name__)
 # ------------------------------------------------------------------
 @time_bp.route("/check_in", methods=["POST"])
 @client_required
+@db_transaction(flash_error=True)
 def check_in(client_id):
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
@@ -98,9 +100,9 @@ def check_in(client_id):
             db.session.commit()
             flash("Entrada registrada correctamente.", "success")
 
-    except SQLAlchemyError:
-        db.session.rollback()
-        flash("Error al registrar la entrada. Intenta de nuevo.", "danger")
+    except Exception:
+        # Re-lanzar excepciones que no sean SQLAlchemyError para que el decorador las maneje
+        raise
 
     return redirect(url_for("time.dashboard_employee"))
 
@@ -110,6 +112,7 @@ def check_in(client_id):
 # ------------------------------------------------------------------
 @time_bp.route("/check_out", methods=["POST"])
 @client_required
+@db_transaction(flash_error=True)
 def check_out(client_id):
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
@@ -136,9 +139,9 @@ def check_out(client_id):
         else:
             flash("No tienes ningún fichaje abierto.", "warning")
 
-    except SQLAlchemyError:
-        db.session.rollback()
-        flash("Error al registrar la salida. Intenta de nuevo.", "danger")
+    except Exception:
+        # Re-lanzar excepciones para que el decorador @db_transaction las maneje
+        raise
 
     return redirect(url_for("time.dashboard_employee"))
 
@@ -366,6 +369,7 @@ def get_active_pause():
 
 @time_bp.route("/time/pause/start", methods=["POST"])
 @client_required
+@db_transaction(flash_error=True)
 def start_pause(client_id):
     """Iniciar una pausa/descanso (con soporte para adjuntar archivos)"""
     if "user_id" not in session:
@@ -454,14 +458,12 @@ def start_pause(client_id):
         return jsonify(response_data)
 
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        # Re-lanzar para que el decorador @db_transaction las maneje
+        raise
 
 
 @time_bp.route("/time/pause/end/<int:pause_id>", methods=["POST"])
+@db_transaction(flash_error=True)
 def end_pause(pause_id):
     """Finalizar una pausa/descanso"""
     if "user_id" not in session:
@@ -497,11 +499,8 @@ def end_pause(pause_id):
         })
 
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        # Re-lanzar para que el decorador @db_transaction las maneje
+        raise
 
 
 # ------------------------------------------------------------------
@@ -509,6 +508,7 @@ def end_pause(pause_id):
 # ------------------------------------------------------------------
 @time_bp.route("/time/requests/new", methods=["POST"])
 @client_required
+@db_transaction(flash_error=True)
 def create_leave_request(client_id):
     """Crear nueva solicitud de vacaciones/baja/ausencia (con soporte para adjuntar archivos)"""
     if "user_id" not in session:
@@ -616,11 +616,8 @@ def create_leave_request(client_id):
         return jsonify(response_data)
 
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        # Re-lanzar para que el decorador @db_transaction las maneje
+        raise
 
 
 @time_bp.route("/time/requests/my", methods=["GET"])
