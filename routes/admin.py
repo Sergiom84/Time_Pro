@@ -144,7 +144,7 @@ def apply_leave_request_statuses(leave_request, admin_notes=None, note_suffix="a
     """
     status = LEAVE_REQUEST_STATUS_MAP.get(leave_request.request_type, "Ausente")
     # Usar la razón/nota del empleado en lugar de texto genérico
-    note_text = leave_request.reason or f"Solicitud {note_suffix}: {leave_request.request_type}"
+    note_text = leave_request.reason
     current_date = leave_request.start_date
 
     while current_date <= leave_request.end_date:
