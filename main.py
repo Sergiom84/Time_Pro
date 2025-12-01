@@ -23,8 +23,7 @@ def _force_ipv4_getaddrinfo(*args, **kwargs):
     return _original_getaddrinfo(*args, **kwargs)
 socket.getaddrinfo = _force_ipv4_getaddrinfo
 
-from flask import Flask, render_template, request, abort
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, abort, jsonify
 from flask_mail import Mail
 from flask_caching import Cache
 from flask_talisman import Talisman
@@ -185,20 +184,6 @@ except Exception as e:
 from utils.multitenant import setup_multitenant_filters
 with app.app_context():
     setup_multitenant_filters(app, db)
-
-# Inicializar SocketIO con orígenes permitidos explícitos (evita CSWSH)
-_allowed_origins = {
-    origin.strip().rstrip('/')
-    for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
-    if origin.strip()
-}
-_allowed_origins.update({"http://localhost:5000", "http://127.0.0.1:5000"})
-# Forzamos async_mode a "threading" para evitar parches de eventlet
-socketio = SocketIO(
-    app,
-    cors_allowed_origins=list(_allowed_origins),
-    async_mode="threading",
-)
 
 # Log rápido del driver efectivo
 try:
@@ -369,13 +354,40 @@ def request_entity_too_large(error):
 def index():
     return render_template("welcome.html")
 
+
+@app.route("/user/theme", methods=["POST"])
+def change_theme():
+    """Cambiar el tema individual del usuario mediante HTTP (sin Socket.IO)."""
+    from flask import session
+    from models.models import User
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "message": "No autenticado"}), 401
+
+    data = request.get_json(silent=True) or {}
+    theme_name = data.get("theme") or request.form.get("theme")
+
+    valid_themes = ["dark-turquoise", "light-minimal", "turquoise-gradient"]
+    if theme_name not in valid_themes:
+        return jsonify({"success": False, "message": "Tema no válido"}), 400
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
+
+    user.theme_preference = theme_name
+    db.session.commit()
+
+    return jsonify(
+        {"success": True, "message": f"Tema cambiado a {theme_name}", "theme": theme_name}
+    )
+
 # WebSocket events para temas individuales (sin sincronización global)
-@socketio.on('connect')
 def handle_connect():
     """Manejar conexión de clientes - Ya no es necesario emitir tema inicial"""
     pass
 
-@socketio.on('change_theme')
 def handle_theme_change(data):
     """Manejar cambio de tema individual del usuario"""
     from flask import session

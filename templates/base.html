@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
 
   <!-- Socket.IO para sincronización en tiempo real -->
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <!-- Socket.IO eliminado: el tema se cambia vía HTTP -->
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -39,6 +39,16 @@
           }
         }
       }
+    };
+  </script>
+
+  <script>
+    // Shim mínimo para Socket.IO: evita conexiones reales y errores
+    window.io = window.io || function () {
+      return {
+        on: function () {},
+        emit: function () {}
+      };
     };
   </script>
 
@@ -359,8 +369,9 @@
 
     // Función para seleccionar tema y cerrar el desplegable
     function selectAndCloseTheme(themeName) {
-      // Cambiar el tema
-      changeTheme(themeName);
+        // Cambiar el tema
+        changeTheme(themeName);
+        document.body.setAttribute('data-theme', themeName);
 
       // Actualizar la etiqueta del tema actual
       const currentThemeLabel = document.getElementById('current-theme-label');
