@@ -485,7 +485,7 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     # En producción usar debug=False
     debug_mode = not (os.getenv('DYNO') or os.getenv('RENDER'))
-    socketio.run(app, host='0.0.0.0', port=port, debug=debug_mode)
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
 else:
     # Cuando se ejecuta con gunicorn, inicializar la base de datos después de crear la app
     init_db()
