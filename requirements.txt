@@ -26,7 +26,6 @@ et-xmlfile==2.0.0
 psycopg2-binary==2.9.10
 gunicorn==21.2.0
 APScheduler==3.10.4
-eventlet==0.39.1
 Flask-SocketIO==5.5.1
 Flask-Mail==0.10.0
 Flask-Caching==2.3.0

@@ -193,11 +193,11 @@ _allowed_origins = {
     if origin.strip()
 }
 _allowed_origins.update({"http://localhost:5000", "http://127.0.0.1:5000"})
-socketio_async_mode = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
+# Forzamos async_mode a "threading" para evitar parches de eventlet
 socketio = SocketIO(
     app,
     cors_allowed_origins=list(_allowed_origins),
-    async_mode=socketio_async_mode,
+    async_mode="threading",
 )
 
 # Log rápido del driver efectivo

@@ -1,1 +1,1 @@
-web: gunicorn --worker-class eventlet -w 1 -b 0.0.0.0:$PORT wsgi:app --timeout 120
+web: gunicorn -c gunicorn_config.py wsgi:app
