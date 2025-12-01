@@ -175,6 +175,7 @@ def check_and_send_notifications_v3(app, mail) -> None:
 
             notifications_sent = 0
             notifications_skipped = 0
+            users_processed = 0  # Contador para batch commits
 
             for user in users:
                 if not user.notification_days:
@@ -319,7 +320,17 @@ def check_and_send_notifications_v3(app, mail) -> None:
                             "[SCHEDULER V3] Fuera de ventana de tiempo para SALIDA"
                         )
 
+                users_processed += 1
+
+                # Batch commit cada 10 usuarios para reducir overhead de transacciones
+                if users_processed % 10 == 0:
+                    db.session.commit()
+                    logger.debug("[SCHEDULER V3] Batch commit: %s usuarios procesados", users_processed)
+
+            # Commit final para cualquier usuario restante
+            if users_processed % 10 != 0:
                 db.session.commit()
+                logger.debug("[SCHEDULER V3] Final commit: %s usuarios totales procesados", users_processed)
 
             logger.info(
                 "[SCHEDULER V3] Revisión completada: %s enviados, %s omitidos",

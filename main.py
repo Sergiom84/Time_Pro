@@ -26,6 +26,7 @@ socket.getaddrinfo = _force_ipv4_getaddrinfo
 from flask import Flask, render_template, request, abort
 from flask_socketio import SocketIO, emit
 from flask_mail import Mail
+from flask_caching import Cache
 from flask_talisman import Talisman
 from models.database import db
 from flask_migrate import Migrate, upgrade as migrate_upgrade
@@ -102,13 +103,14 @@ Talisman(
 # Configure SQLAlchemy engine options based on environment
 is_production = os.getenv('DYNO') or os.getenv('RENDER')
 if is_production:
-    # Production environment - standard pooling for sync workers
+    # Production environment - reduced pooling for eventlet + 1 worker
+    # Con eventlet + 1 worker no necesitamos 30 conexiones (pool_size + max_overflow)
     # Configurado para usar Connection Pooler (puerto 6543)
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 3,        # Reducido de 10 a 3
+        "max_overflow": 7,     # Reducido de 20 a 7 (total: 10 conexiones)
         "pool_timeout": 30,
         "connect_args": {
             "connect_timeout": 10,
@@ -153,6 +155,24 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('
 db.init_app(app)
 mail = Mail(app)
 
+# Inicializar cache en memoria simple (suficiente para 1 worker eventlet)
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
+
+# Logging de queries lentas (> 1 segundo) para detectar cuellos de botella
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+import time
+
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    conn.info.setdefault('query_start_time', []).append(time.time())
+
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    total = time.time() - conn.info['query_start_time'].pop(-1)
+    if total > 1.0:  # Log queries > 1 segundo
+        app.logger.warning(f"⚠️ Slow query ({total:.2f}s): {statement[:200]}")
+
 # Log de diagnóstico para confirmar columnas efectivas en el modelo User en tiempo de ejecución
 try:
     from models.models import User
@@ -193,6 +213,22 @@ def _log_db_on_request():
     except Exception as e:
         logger.debug(f"[REQ] engine-info error: {e}")
 
+# Memory profiling opcional (solo en debug mode)
+import tracemalloc
+
+@app.before_request
+def _memory_profiling_start():
+    if app.debug:
+        tracemalloc.start()
+
+@app.after_request
+def _memory_profiling_end(response):
+    if app.debug and tracemalloc.is_tracing():
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"💾 Memory: {current / 10**6:.2f}MB (peak: {peak / 10**6:.2f}MB) - {request.path}")
+        tracemalloc.stop()
+    return response
+
 migrate = Migrate(app, db)
 
 # Proper session cleanup
@@ -225,6 +261,15 @@ def inject_user():
     client_config_dict = {}
 
     user_id = session.get("user_id")
+
+    # Cachear el contexto por 5 minutos para evitar 3 queries en cada request
+    if user_id:
+        cache_key = f"user_context_{user_id}"
+        cached = cache.get(cache_key)
+
+        if cached:
+            return cached
+
     if user_id:
         user = db.session.get(User, user_id)
         if user:
@@ -276,7 +321,7 @@ def inject_user():
             'features': plan_config.get_config()['features']
         }
 
-    return dict(
+    result = dict(
         current_user=user,
         greeting=greeting,
         current_theme=current_theme,
@@ -284,6 +329,13 @@ def inject_user():
         current_client=current_client,
         client_config=client_config_dict
     )
+
+    # Guardar en cache por 5 minutos
+    if user_id:
+        cache_key = f"user_context_{user_id}"
+        cache.set(cache_key, result, timeout=300)
+
+    return result
 
 # Registrar blueprints
 app.register_blueprint(auth_bp)

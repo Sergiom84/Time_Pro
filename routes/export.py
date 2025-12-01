@@ -4,6 +4,7 @@ from models.models import User, TimeRecord, EmployeeStatus, Center, Category
 from models.database import db
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta, date
+from sqlalchemy.orm import joinedload
 import os
 import tempfile
 import openpyxl
@@ -85,7 +86,14 @@ def handle_daily_excel_export(req):
     # Obtener registros de TimeRecord (si "Trabajado" está seleccionado)
     time_records = []
     if 'Trabajado' in status_filters:
-        time_records = TimeRecord.query.filter(TimeRecord.date == fecha).order_by(TimeRecord.user_id).all()
+        # Eager loading: cargar User en la misma query para evitar N+1
+        time_records = (
+            TimeRecord.query
+            .filter(TimeRecord.date == fecha)
+            .options(joinedload(TimeRecord.user))
+            .order_by(TimeRecord.user_id)
+            .all()
+        )
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
@@ -117,7 +125,8 @@ def handle_daily_excel_export(req):
 
         row_num = 2
         for record in time_records:
-            user = User.query.get(record.user_id)
+            # Usar record.user (ya cargado con eager loading)
+            user = record.user
             hours_worked = ""
             if record.check_in and record.check_out:
                 time_diff = record.check_out - record.check_in
@@ -274,7 +283,14 @@ def handle_daily_pdf_export(req):
     # Obtener registros de TimeRecord (si "Trabajado" está seleccionado)
     time_records = []
     if 'Trabajado' in status_filters:
-        time_records = TimeRecord.query.filter(TimeRecord.date == fecha).order_by(TimeRecord.user_id).all()
+        # Eager loading: cargar User en la misma query para evitar N+1
+        time_records = (
+            TimeRecord.query
+            .filter(TimeRecord.date == fecha)
+            .options(joinedload(TimeRecord.user))
+            .order_by(TimeRecord.user_id)
+            .all()
+        )
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
@@ -311,7 +327,8 @@ def handle_daily_pdf_export(req):
 
         pdf.set_font("Arial", "", 8)
         for record in time_records:
-            user = User.query.get(record.user_id)
+            # Usar record.user (ya cargado con eager loading)
+            user = record.user
             hours_worked = ""
             if record.check_in and record.check_out:
                 time_diff = record.check_out - record.check_in
@@ -1141,7 +1158,14 @@ def export_excel_daily():
         flash("Formato de fecha inválido.", "danger")
         return redirect(url_for("export.export_excel"))
 
-    records = TimeRecord.query.filter(TimeRecord.date == fecha).order_by(TimeRecord.user_id).all()
+    # Eager loading: cargar User en la misma query para evitar N+1
+    records = (
+        TimeRecord.query
+        .filter(TimeRecord.date == fecha)
+        .options(joinedload(TimeRecord.user))
+        .order_by(TimeRecord.user_id)
+        .all()
+    )
     if not records:
         flash("No hay registros para ese día.", "warning")
         return redirect(url_for("export.export_excel"))
@@ -1158,7 +1182,8 @@ def export_excel_daily():
 
     row_num = 2
     for record in records:
-        user = User.query.get(record.user_id)
+        # Usar record.user (ya cargado con eager loading)
+        user = record.user
         hours_worked = ""
         if record.check_in and record.check_out:
             time_diff = record.check_out - record.check_in
@@ -1206,7 +1231,14 @@ def export_pdf_daily():
         flash("Formato de fecha inválido.", "danger")
         return redirect(url_for("export.export_excel"))
 
-    records = TimeRecord.query.filter(TimeRecord.date == fecha).order_by(TimeRecord.user_id).all()
+    # Eager loading: cargar User en la misma query para evitar N+1
+    records = (
+        TimeRecord.query
+        .filter(TimeRecord.date == fecha)
+        .options(joinedload(TimeRecord.user))
+        .order_by(TimeRecord.user_id)
+        .all()
+    )
     if not records:
         flash("No hay registros para ese día.", "warning")
         return redirect(url_for("export.export_excel"))
@@ -1226,7 +1258,8 @@ def export_pdf_daily():
 
     pdf.set_font("Arial", "", 9)
     for record in records:
-        user = User.query.get(record.user_id)
+        # Usar record.user (ya cargado con eager loading)
+        user = record.user
         hours_worked = ""
         if record.check_in and record.check_out:
             time_diff = record.check_out - record.check_in

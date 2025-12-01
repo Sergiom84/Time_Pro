@@ -338,7 +338,12 @@ def dashboard():
     elif filtro_categoria_none:
         q = q.filter(User.category_id.is_(None))
 
-    records = q.order_by(TimeRecord.date.asc(), TimeRecord.check_in.asc()).all()
+    # Limitar a 500 registros para evitar cargar miles en memoria
+    total_count = q.count()
+    records = q.order_by(TimeRecord.date.asc(), TimeRecord.check_in.asc()).limit(500).all()
+
+    if total_count > 500:
+        flash(f"Mostrando solo los primeros 500 registros de {total_count} totales. Usa filtros para refinar la búsqueda.", "info")
 
     week_acc, records_with_accum = {}, []
     for rec in records:
@@ -1208,8 +1213,11 @@ def api_events():
 
     events = []
 
-    # Agregar eventos de EmployeeStatus
-    for es in q.all():
+    # Agregar eventos de EmployeeStatus con eager loading para evitar N+1
+    from sqlalchemy.orm import joinedload
+    for es in q.options(
+        joinedload(EmployeeStatus.user).joinedload(User.category)
+    ).all():
         # Determinar color: si hay request_type, usarlo; si no, usar status
         color_key = es.request_type if es.request_type else es.status
         color = color_map.get(color_key, "#9ca3af")
@@ -1904,7 +1912,8 @@ def get_pending_requests():
     if centro_admin:
         query = query.filter(User.center_id == centro_admin)
 
-    requests = query.order_by(LeaveRequest.created_at.desc()).all()
+    # Limitar a 50 solicitudes más recientes para evitar cargar miles en memoria
+    requests = query.order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
     # Agrupar por tipo
     vacaciones = []
@@ -1949,3 +1958,51 @@ def get_pending_requests():
             "ausencias": len(ausencias)
         }
     })
+
+
+# --------------------------------------------------------------------
+#  RENDER CRON JOB ENDPOINT
+# --------------------------------------------------------------------
+@admin_bp.route("/cron/notifications", methods=["POST"])
+def cron_notifications():
+    """
+    Endpoint para ejecutar tareas programadas desde Render Cron Jobs.
+    Reemplaza APScheduler en producción (incompatible con eventlet).
+
+    Debe ser llamado desde Render Cron Job con header X-Render-Cron-Key
+    """
+    import os
+
+    # Validar API key para seguridad
+    api_key = request.headers.get('X-Render-Cron-Key')
+    expected_key = os.getenv('RENDER_CRON_KEY')
+
+    if not expected_key:
+        logger.error("RENDER_CRON_KEY not configured in environment")
+        abort(500, description="Cron job not configured properly")
+
+    if api_key != expected_key:
+        logger.warning(f"Invalid cron key attempt from {request.remote_addr}")
+        abort(403, description="Forbidden")
+
+    try:
+        # Ejecutar tareas de notificaciones
+        from tasks.email_service_v3 import check_and_send_notifications_v3
+        from main import app, mail
+
+        logger.info("Starting cron job: email notifications")
+        result = check_and_send_notifications_v3(app, mail)
+
+        logger.info(f"Cron job completed successfully: {result}")
+        return jsonify({
+            "status": "success",
+            "message": "Notification cron job executed",
+            "result": result
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Cron job failed: {str(e)}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
