@@ -10,6 +10,8 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from collections import defaultdict
+from routes.auth import admin_required
+from utils.logging_utils import get_logger
 
 export_bp = Blueprint("export", __name__, template_folder="../templates")
 
@@ -61,21 +63,6 @@ def get_user_category_label(user, default="-"):
     if user.category:
         return user.category.name
     return default
-
-# Decorator to check if user is admin
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("is_admin"):
-            flash("Acceso no autorizado. Se requieren permisos de administrador.", "danger")
-            return redirect(url_for("auth.login"))
-        user = User.query.get(session.get("user_id"))
-        if not user or not user.role:
-            session.clear()
-            flash("Tu cuenta ya no tiene permisos de administrador.", "danger")
-            return redirect(url_for("auth.login"))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # ========== FUNCIONES HELPER PARA EXPORTACIONES DIARIAS CON FILTROS ==========
 
@@ -398,22 +385,22 @@ def export_excel():
         botones = [k for k in request.form.keys() if k.startswith('excel_')]
         boton_pulsado = botones[-1] if botones else None
 
-        # LOG de depuración para ver los valores recibidos
-        print('--- FILTROS RECIBIDOS ---')
-        print('Botones recibidos:', botones)
-        print('Botón realmente pulsado:', boton_pulsado)
-        print('centro1:', request.form.get('centro1'))
-        print('usuario1:', request.form.get('usuario1'))
-        print('centro2:', request.form.get('centro2'))
-        print('categoria2:', request.form.get('categoria2'))
-        print('centro3:', request.form.get('centro3'))
-        print('horas3:', request.form.get('horas3'))
-        print('centro4:', request.form.get('centro4'))
-        print('usuario4:', request.form.get('usuario4'))
-        print('categoria4:', request.form.get('categoria4'))
-        print('horas4:', request.form.get('horas4'))
-        print('start_date:', request.form.get('start_date'))
-        print('end_date:', request.form.get('end_date'))
+        # LOG de depuracion para ver los valores recibidos
+        logger.debug('--- FILTROS RECIBIDOS ---')
+        logger.debug(f'Botones recibidos: {botones}')
+        logger.debug(f'Boton realmente pulsado: {boton_pulsado}')
+        logger.debug(f"centro1: {request.form.get('centro1')}")
+        logger.debug(f"usuario1: {request.form.get('usuario1')}")
+        logger.debug(f"centro2: {request.form.get('centro2')}")
+        logger.debug(f"categoria2: {request.form.get('categoria2')}")
+        logger.debug(f"centro3: {request.form.get('centro3')}")
+        logger.debug(f"horas3: {request.form.get('horas3')}")
+        logger.debug(f"centro4: {request.form.get('centro4')}")
+        logger.debug(f"usuario4: {request.form.get('usuario4')}")
+        logger.debug(f"categoria4: {request.form.get('categoria4')}")
+        logger.debug(f"horas4: {request.form.get('horas4')}")
+        logger.debug(f"start_date: {request.form.get('start_date')}")
+        logger.debug(f"end_date: {request.form.get('end_date')}")
 
         # Inicializar filtros
         centro = user_id = categoria = weekly_hours = None
@@ -472,13 +459,13 @@ def export_excel():
 
         categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
 
-        print('Valores usados para filtrar:')
-        print('centro:', centro)
-        print('user_id:', user_id)
-        print('categoria:', categoria)
-        print('weekly_hours:', weekly_hours)
-        print('status_filters:', status_filters)
-        print('--------------------------')
+        logger.debug('Valores usados para filtrar:')
+        logger.debug(f'centro: {centro}')
+        logger.debug(f'user_id: {user_id}')
+        logger.debug(f'categoria: {categoria}')
+        logger.debug(f'weekly_hours: {weekly_hours}')
+        logger.debug(f'status_filters: {status_filters}')
+        logger.debug('--------------------------')
 
         # ========== OBTENER REGISTROS DE TIMERECORD (si "Trabajado" está seleccionado) ==========
         time_records = []

@@ -153,9 +153,6 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('
 db.init_app(app)
 mail = Mail(app)
 
-# Configurar headers de seguridad con Flask-Talisman
-Talisman(app, force_https=False)  # force_https=True en producción con HTTPS
-
 # Log de diagnóstico para confirmar columnas efectivas en el modelo User en tiempo de ejecución
 try:
     from models.models import User
@@ -229,7 +226,7 @@ def inject_user():
 
     user_id = session.get("user_id")
     if user_id:
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if user:
             # Obtener solo el primer nombre
             first_name = user.full_name.split()[0] if user.full_name else user.username
@@ -339,7 +336,7 @@ def handle_theme_change(data):
         return {'success': False, 'message': 'Tema no válido'}
 
     # Guardar tema en el usuario actual (no en SystemConfig)
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return {'success': False, 'message': 'Usuario no encontrado'}
 

@@ -57,8 +57,13 @@ def client_required(f):
     def decorated_function(*args, **kwargs):
         client_id = session.get("client_id")
         if not client_id:
-            # Detectar si es petición JSON (API) o HTML (formulario)
-            if request.is_json:
+            # Detectar si es petición JSON (API) o el cliente espera JSON (FormData con AJAX)
+            wants_json = request.is_json or (
+                request.accept_mimetypes
+                and request.accept_mimetypes.accept_json
+                and request.accept_mimetypes['application/json'] >= request.accept_mimetypes['text/html']
+            )
+            if wants_json:
                 return jsonify({
                     "success": False,
                     "error": "No se pudo determinar el cliente activo. Inicia sesión nuevamente."

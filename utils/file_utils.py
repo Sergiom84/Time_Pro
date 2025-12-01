@@ -15,6 +15,9 @@ from config.supabase_config import (
     MAX_FILE_SIZE,
     STORAGE_BUCKET
 )
+from utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def allowed_file(filename: str) -> bool:
@@ -146,16 +149,13 @@ def upload_file_to_supabase(
         mime_type = mime_map.get(ext, 'application/octet-stream')
 
         # Subir a Supabase Storage usando requests directamente
-        print(f"📤 Intentando subir archivo: {storage_path}")
-        print(f"   Tamaño: {len(file_content)} bytes")
-        print(f"   Tipo MIME: {mime_type}")
+        logger.debug("Intentando subir archivo: %s (tamano=%s bytes, mime=%s)", storage_path, len(file_content), mime_type)
 
         # Método alternativo usando requests directamente para evitar problemas con httpx
         try:
             import requests
             from config.supabase_config import SUPABASE_URL, SUPABASE_KEY
 
-            # Construir URL de la API de Storage
             upload_url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{storage_path}"
 
             headers = {
@@ -164,8 +164,7 @@ def upload_file_to_supabase(
                 "x-upsert": "true"  # Sobrescribir si existe
             }
 
-            print(f"   URL: {upload_url}")
-            print(f"   Headers: Authorization: Bearer ***")
+            logger.debug("URL: %s", upload_url)
 
             response = requests.post(
                 upload_url,
@@ -176,19 +175,17 @@ def upload_file_to_supabase(
 
             if response.status_code not in [200, 201]:
                 error_detail = response.text
-                print(f"❌ Error en upload - Status: {response.status_code}")
-                print(f"   Response: {error_detail}")
+                logger.error("Error en upload - Status: %s Response: %s", response.status_code, error_detail)
                 raise Exception(f"Error al subir archivo (status {response.status_code}): {error_detail}")
 
-            print(f"✅ Archivo subido exitosamente - Status: {response.status_code}")
+            logger.info("Archivo subido exitosamente - Status: %s", response.status_code)
 
         except Exception as upload_error:
-            print(f"❌ Error en upload(): {str(upload_error)}")
-            print(f"   Tipo de error: {type(upload_error).__name__}")
+            logger.error("Error en upload(): %s (%s)", upload_error, type(upload_error).__name__)
             raise
 
         # Generar signed URL manualmente usando requests
-        print(f"📝 Generando signed URL...")
+        logger.debug("Generando signed URL...")
         try:
             signed_url_api = f"{SUPABASE_URL}/storage/v1/object/sign/{STORAGE_BUCKET}/{storage_path}"
             sign_payload = {"expiresIn": 31536000}  # 1 año en segundos
@@ -206,19 +203,18 @@ def upload_file_to_supabase(
             if sign_response.status_code == 200:
                 signed_data = sign_response.json()
                 signed_path = signed_data.get('signedURL', '')
-                # La signedURL es un path relativo, necesitamos construir la URL completa
                 final_url = f"{SUPABASE_URL}/storage/v1{signed_path}"
-                print(f"✅ Signed URL generada exitosamente")
+                logger.debug("Signed URL generada exitosamente")
             else:
-                # Si falla, usar URL pública
-                print(f"⚠️  No se pudo generar signed URL, usando URL pública")
+                logger.warning("No se pudo generar signed URL, usando URL pública")
                 final_url = f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{storage_path}"
 
         except Exception as sign_error:
-            print(f"⚠️  Error al generar signed URL: {sign_error}, usando URL pública")
+            logger.warning("Error al generar signed URL: %s, usando URL pública", sign_error)
             final_url = f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{storage_path}"
 
-        print(f"🔗 URL final: {final_url[:100]}...")
+        logger.debug("URL final: %s...", final_url[:100])
+
 
         return True, "Archivo subido exitosamente", {
             "url": final_url,
@@ -229,10 +225,8 @@ def upload_file_to_supabase(
 
     except Exception as e:
         error_msg = f"{str(e)}"
-        print(f"❌ Error al subir archivo: {error_msg}")
-        print(f"   Tipo de error: {type(e).__name__}")
         import traceback
-        print(f"   Traceback: {traceback.format_exc()}")
+        logger.error("Error al subir archivo: %s (%s)\n%s", error_msg, type(e).__name__, traceback.format_exc())
         return False, error_msg, {}
 
 
@@ -264,7 +258,7 @@ def delete_file_from_supabase(file_url: str) -> tuple[bool, str]:
 
     except Exception as e:
         error_msg = f"Error al eliminar archivo: {str(e)}"
-        print(f"❌ {error_msg}")
+        logger.error(error_msg)
         return False, error_msg
 
 
@@ -298,5 +292,5 @@ def get_signed_url(file_url: str, expires_in: int = 3600) -> str:
         return signed_url.get('signedURL', file_url)
 
     except Exception as e:
-        print(f"⚠️  Error al generar signed URL: {e}")
+        logger.error("Error al generar signed URL: %s", e)
         return file_url

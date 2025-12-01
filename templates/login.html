@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Time Tracker</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body data-theme="dark-turquoise" class="font-sans flex justify-center items-center min-h-screen m-0" style="background-color: var(--bg-primary); color: var(--text-primary);">
+    <div class="w-full max-w-md p-10">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold mb-2" style="color: var(--accent-primary);">
+                Time Tracker
+            </h1>
+            <p class="text-sm mt-2" style="color: var(--text-secondary);">
+                Accede a tu cuenta
+            </p>
+        </div>
+
+        <!-- Mensajes flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div id="flash-messages" class="mb-6 space-y-3">
+                {% for category, message in messages %}
+                    <div class="p-4 rounded-lg text-sm font-medium
+                        {% if category == 'danger' %} bg-red-500 border-l-4 border-red-700 text-white
+                        {% elif category == 'success' %} bg-green-500 border-l-4 border-green-700 text-white
+                        {% else %} border-l-4 {% endif %}"
+                        style="{% if category == 'danger' %}{% elif category == 'success' %}{% else %}background-color: var(--bg-secondary); border-color: var(--accent-primary); color: var(--text-primary);{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Formulario de login -->
+        <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+            <!-- Client identifier -->
+            <div>
+                <label for="client_identifier" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                    Empresa / ID de cliente
+                </label>
+                <input type="text" id="client_identifier" name="client_identifier" required
+                       value="{{ client_identifier or '' }}"
+                       class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
+            </div>
+            <!-- Username field -->
+            <div>
+                <label for="username" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                    Nombre de Usuario
+                </label>
+                <input type="text" id="username" name="username" required
+                       class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
+            </div>
+
+            <!-- Password field -->
+            <div>
+                <label for="password" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
+                    Contraseña
+                </label>
+                <input type="password" id="password" name="password" required
+                       class="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all"
+                       style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color); focus-color: var(--accent-primary); focus-box-shadow: 0 0 0 3px rgba(0, 217, 191, 0.1);">
+            </div>
+
+            <!-- Submit button -->
+            <button type="submit"
+                    class="w-full py-3 px-6 rounded-full cursor-pointer text-lg font-bold transition-all duration-300 ease-in-out text-white hover:opacity-90 active:transform active:scale-95 mt-8"
+                    style="background-color: var(--accent-primary);">
+                Entrar
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Auto-desvanecido de mensajes flash tras 2 segundos
+        const flashMessages = document.getElementById('flash-messages');
+        if (flashMessages) {
+            setTimeout(() => {
+                flashMessages.style.transition = 'opacity 0.6s ease';
+                flashMessages.style.opacity = '0';
+                setTimeout(() => flashMessages.remove(), 800);
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

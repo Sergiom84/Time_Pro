@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {{ 'Añadir' if action == 'add' else 'Editar' }} Usuario - TimeTracker
+{% endblock %}
+
+{% block header %}
+    <span class="text-timetracker-primary">{{ 'Añadir Nuevo' if action == 'add' else 'Editar' }} Usuario</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-gray-900 border border-gray-700 rounded-lg shadow-md p-8">
+    <form method="POST"
+          action="{{ url_for('admin.add_user') if action == 'add' else url_for('admin.edit_user', user_id=user.id) }}">
+        {% if form_data %}
+        <div class="mb-4 text-red-400 bg-red-900 p-2 rounded">
+            Todos los campos son obligatorios.
+        </div>
+        {% endif %}
+
+        <!-- Nombre de usuario -->
+        <div class="mb-4">
+            <label for="username" class="block text-sm font-medium text-gray-300 mb-1">
+                Nombre de usuario
+            </label>
+            <input type="text"
+                   id="username"
+                   name="username"
+                   required
+                   value="{{ form_data.username if form_data else (user.username if user else '') }}"
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Nombre completo -->
+        <div class="mb-4">
+            <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">
+                Nombre completo
+            </label>
+            <input type="text"
+                   id="full_name"
+                   name="full_name"
+                   required
+                   value="{{ form_data.full_name if form_data else (user.full_name if user else '') }}"
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Email -->
+        <div class="mb-4">
+            <label for="email" class="block text-sm font-medium text-gray-300 mb-1">
+                Email
+            </label>
+            <input type="email"
+                   id="email"
+                   name="email"
+                   required
+                   value="{{ form_data.email if form_data else (user.email if user else '') }}"
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Contraseña -->
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-300 mb-1">
+                Contraseña{% if action=='edit' %} (dejar en blanco para no cambiar){% endif %}
+            </label>
+            <input type="password"
+                   id="password"
+                   name="password"
+                   {% if action=='add' %}required{% endif %}
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Horas semanales -->
+        <div class="mb-4">
+            <label for="weekly_hours" class="block text-sm font-medium text-gray-300 mb-1">
+                Horas contratadas por semana
+            </label>
+            <input type="number"
+                   id="weekly_hours"
+                   name="weekly_hours"
+                   min="0"
+                   required
+                   value="{{ form_data.weekly_hours if form_data else (user.weekly_hours if user else '') }}"
+                   class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+        </div>
+
+        <!-- Fechas de Alta y Baja -->
+        <div class="mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="hire_date" class="block text-sm font-medium text-gray-300 mb-1">
+                        Fecha de alta
+                    </label>
+                    <input type="date"
+                           id="hire_date"
+                           name="hire_date"
+                           value="{{ form_data.hire_date if form_data else (user.hire_date if user else '') }}"
+                           class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+                </div>
+                <div>
+                    <label for="termination_date" class="block text-sm font-medium text-gray-300 mb-1">
+                        Fecha de baja
+                    </label>
+                    <input type="date"
+                           id="termination_date"
+                           name="termination_date"
+                           value="{{ form_data.termination_date if form_data else (user.termination_date if user else '') }}"
+                           class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+                </div>
+            </div>
+        </div>
+
+        <!-- Centro / Super admin (solo en versión Pro con múltiples centros) -->
+        {% if plan_config.show_center_selector %}
+        <div class="mb-4">
+            <label for="centro" class="block text-sm font-medium text-gray-300 mb-1">
+                {{ plan_config.center_label }}
+            </label>
+            <select id="centro" name="centro"
+                    class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+                {% if not centro_admin %}
+                <!-- Solo super admin puede ver la opción "Sin asignar" -->
+                <option value="-- Sin categoría --"
+                    {% if (form_data and form_data.get('centro') == '-- Sin categoría --') or (user and user.center and user.center.name == '-- Sin categoría --') or (not form_data and not user) %}selected{% endif %}>
+                    -- Sin asignar --
+                </option>
+                {% endif %}
+                {% for centro in centros %}
+                <option value="{{ centro }}"
+                    {% if (form_data and form_data.get('centro') == centro) or (user and user.center and user.center.name == centro) or (centro_admin == centro and not user) %}selected{% endif %}>
+                    {{ centro }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Sección de roles (solo si el usuario actual puede asignar) -->
+        {% if can_assign_any_role %}
+        <div class="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg">
+            <h3 class="text-sm font-medium text-gray-300 mb-3">Rol del usuario</h3>
+
+            <!-- Ningún rol (Empleado normal) -->
+            <div class="mb-3 flex items-center">
+                <input type="radio"
+                       id="role_none"
+                       name="role"
+                       value="none"
+                       {% if not form_data or not form_data.get('role') or form_data.get('role') == 'none' %}checked{% elif user and not user.role %}checked{% endif %}
+                       class="h-4 w-4 text-timetracker-primary bg-gray-700 border-gray-600 rounded focus:ring-timetracker-primary focus:ring-2">
+                <label for="role_none" class="ml-2 block text-sm text-gray-300">
+                    Empleado Normal (sin permisos especiales)
+                </label>
+            </div>
+
+            <!-- Admin de centro (solo en PRO) -->
+            {% if can_assign_admin %}
+            <div class="mb-3 flex items-center">
+                <input type="radio"
+                       id="role_admin"
+                       name="role"
+                       value="admin"
+                       {% if form_data and form_data.get('role') == 'admin' %}checked{% elif user and user.role == 'admin' %}checked{% endif %}
+                       class="h-4 w-4 text-timetracker-primary bg-gray-700 border-gray-600 rounded focus:ring-timetracker-primary focus:ring-2">
+                <label for="role_admin" class="ml-2 block text-sm text-gray-300">
+                    Administrador de Centro (gestiona su centro)
+                </label>
+            </div>
+
+            <!-- Super Admin (solo en PRO y si puede asignar super admin) -->
+            {% if can_assign_super %}
+            <div class="mb-3 flex items-center">
+                <input type="radio"
+                       id="role_super_admin"
+                       name="role"
+                       value="super_admin"
+                       {% if form_data and form_data.get('role') == 'super_admin' %}checked{% elif user and user.role == 'super_admin' %}checked{% endif %}
+                       class="h-4 w-4 text-timetracker-primary bg-gray-700 border-gray-600 rounded focus:ring-timetracker-primary focus:ring-2">
+                <label for="role_super_admin" class="ml-2 block text-sm text-gray-300">
+                    Super Administrador (gestiona todos los centros)
+                </label>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if action == 'add' and not can_assign_any_role %}
+        <!-- Aviso si el usuario no puede asignar roles -->
+        <div class="mb-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+            <p class="text-sm text-blue-300">
+                Los nuevos usuarios serán creados como empleados normales. Solo un super administrador puede asignar roles.
+            </p>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- Versión Lite: Centro único, ocultar campo completamente -->
+        <input type="hidden" name="centro" value="{{ centros[0] if centros else '-- Sin categoría --' }}">
+        {% endif %}
+
+        <!-- Categoria (dinámico según categorías disponibles del cliente) -->
+        <div class="mb-4">
+            <label for="categoria" class="block text-sm font-medium text-gray-300 mb-1">
+                Categoría
+            </label>
+            <select id="categoria" name="categoria"
+                    class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-timetracker-primary">
+                <option value="">-- Sin categoría --</option>
+                {% for categoria_name in categorias %}
+                <option value="{{ categoria_name }}"
+                    {% if (form_data and form_data.get('categoria') == categoria_name) or (user and user.category and user.category.name == categoria_name) %}selected{% endif %}>
+                    {{ categoria_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Activo (sólo en edición, si no es el propio admin) -->
+        {% if action=='edit' and user.id!=session.get('user_id') %}
+        <div class="mb-6 flex items-center">
+            <input type="checkbox"
+                   id="is_active"
+                   name="is_active"
+                   {% if form_data and form_data.get('is_active')=='on' %}
+                     checked
+                   {% elif user and user.is_active %}
+                     checked
+                   {% endif %}
+                   class="h-4 w-4 text-timetracker-primary bg-gray-700 border-gray-600 rounded focus:ring-timetracker-primary focus:ring-2">
+            <label for="is_active" class="ml-2 block text-sm text-gray-300">
+                Está Activo
+            </label>
+        </div>
+        {% endif %}
+
+        <!-- Botones -->
+        <div class="flex flex-wrap gap-3 justify-end">
+            <a href="{{ url_for('admin.manage_users') }}"
+               class="py-2 px-4 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="py-2 px-4 rounded-lg bg-timetracker-primary text-white hover:opacity-90 shadow-md">
+                {{ 'Crear Usuario' if action=='add' else 'Guardar Cambios' }}
+            </button>
+            {% if action=='edit' and user.id!=session.get('user_id') %}
+            <form method="POST"
+                  action="{{ url_for('admin.delete_user', user_id=user.id) }}"
+                  onsubmit="return confirm('¿Estás seguro de eliminar este usuario?');">
+                <button type="submit"
+                        class="py-2 px-4 rounded-lg bg-red-700 text-white hover:bg-red-800 shadow-md">
+                    Eliminar Usuario
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

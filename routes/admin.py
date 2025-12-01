@@ -12,12 +12,16 @@ import plan_config  # Sistema de configuración multi-plan
 from utils.multitenant import get_client_config
 from utils.auth_decorators import admin_required
 from utils.helpers import format_timedelta
+from utils.query_helpers import time_records_query, work_pauses_query
+from utils.logging_utils import get_logger
 
 admin_bp = Blueprint(
     "admin", __name__,
     template_folder="../templates",
     url_prefix="/admin"
 )
+
+logger = get_logger(__name__)
 
 # Listas estáticas (DEPRECADAS - usar funciones dinámicas en su lugar)
 CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
@@ -297,7 +301,7 @@ def dashboard():
     # Usuarios activos con fichaje abierto (limitados por centro si aplica)
     # Solo contar empleados (sin rol admin)
     active_q = (
-        TimeRecord.query
+        time_records_query()
         .join(User, TimeRecord.user_id == User.id)
         .filter(TimeRecord.check_in.isnot(None), TimeRecord.check_out.is_(None), User.role.is_(None))
         .with_entities(TimeRecord.user_id)
@@ -317,7 +321,7 @@ def dashboard():
     end_of_week = start_of_week + timedelta(days=6)
 
     q = (
-        TimeRecord.query
+        time_records_query()
         .join(User, TimeRecord.user_id == User.id)
         .filter(
             TimeRecord.date >= start_of_week,
@@ -350,10 +354,8 @@ def dashboard():
         # Buscar pausa activa del usuario si el registro está abierto
         active_pause = None
         if rec.check_in and not rec.check_out:
-            active_pause = WorkPause.query.filter_by(
-                user_id=uid,
-                pause_end=None
-            ).order_by(WorkPause.id.desc()).first()
+            active_pause = work_pauses_query(user_id=uid, include_active_only=True) \
+                .order_by(WorkPause.id.desc()).first()
 
         records_with_accum.append({
             "record": rec,
@@ -656,12 +658,30 @@ def delete_user(user_id):
         flash("No puedes eliminar tu propia cuenta.", "danger")
         return redirect(url_for("admin.manage_users"))
 
-    # Limpiar referencias en system_config antes de borrar el usuario
-    SystemConfig.query.filter_by(updated_by=user_id).update({"updated_by": None})
+    try:
+        # Cancelar solicitudes pendientes/aprobadas del usuario antes de eliminar
+        pending_leave_requests = LeaveRequest.query.filter(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status.in_(["Pendiente", "Aprobado"])
+        ).all()
 
-    db.session.delete(user)
-    db.session.commit()
-    flash("Usuario eliminado.", "success")
+        for leave_req in pending_leave_requests:
+            leave_req.status = "Cancelado"
+            logger.info("Solicitud de %s del usuario %s marcada como Cancelada al eliminar usuario",
+                       leave_req.request_type, user.username)
+
+        # Limpiar referencias en system_config antes de borrar el usuario
+        SystemConfig.query.filter_by(updated_by=user_id).update({"updated_by": None})
+
+        db.session.delete(user)
+        db.session.commit()
+        flash("Usuario eliminado.", "success")
+        logger.info("Usuario %s eliminado exitosamente", user.username)
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Error al eliminar usuario %s: %s", user.username, str(e), exc_info=True)
+        flash(f"Error al eliminar usuario: {str(e)}", "danger")
+
     return redirect(url_for("admin.manage_users"))
 
 @admin_bp.route("/users/toggle_active/<int:user_id>", methods=["POST"])
@@ -1423,7 +1443,7 @@ def open_records():
     # Limitar por centro del admin si aplica y excluir admins
     centro_admin = get_admin_centro()
     q = (
-        TimeRecord.query
+        time_records_query()
         .join(User, TimeRecord.user_id == User.id)
         .filter(
             TimeRecord.check_in.isnot(None),
@@ -1466,12 +1486,16 @@ def close_today_records():
         if closed_count > 0:
             current_time = datetime.now().strftime('%H:%M')
             flash(f"Se cerraron {closed_count} registros abiertos de hoy a las {current_time}.", "success")
+            logger.info("Manual close closed %s records at %s", closed_count, current_time)
         else:
             flash("No hay registros abiertos para cerrar hoy.", "info")
+            logger.info("Manual close triggered with no open records")
     except ImportError:
         flash("La funcionalidad de cierre automático no está disponible.", "warning")
+        logger.warning("manual_auto_close_records import failed")
     except Exception as e:
         flash(f"Error al cerrar registros: {str(e)}", "danger")
+        logger.error("Error closing records manually: %s", e, exc_info=True)
 
     return redirect(url_for("admin.open_records"))
 

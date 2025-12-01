@@ -165,27 +165,25 @@ def dashboard_employee():
     start_week = today - timedelta(days=today.weekday())
     end_week   = start_week + timedelta(days=7)
 
-    weekly_records = TimeRecord.query.filter(
-        and_(
-            TimeRecord.user_id == user_id,
+    weekly_records = (
+        time_records_query(user_id=user_id)
+        .filter(
             TimeRecord.date >= start_week,
-            TimeRecord.date <  end_week,
+            TimeRecord.date < end_week,
             TimeRecord.check_in.isnot(None),
             TimeRecord.check_out.isnot(None)
         )
-    ).all()
+        .all()
+    )
 
     worked_secs   = sum((r.check_out - r.check_in).total_seconds() for r in weekly_records)
     allowed_secs  = (user.weekly_hours or 0) * 3600
     remain_secs   = max(allowed_secs - worked_secs, 0)
 
-    recent = (
-        TimeRecord.query
-        .filter_by(user_id=user_id)
-        .order_by(desc(TimeRecord.date), desc(TimeRecord.check_in))
-        .limit(3)
+    recent = time_records_query(user_id=user_id) \
+        .order_by(desc(TimeRecord.date), desc(TimeRecord.check_in)) \
+        .limit(3) \
         .all()
-    )
 
     recent_fmt = []
     for rec in recent:
@@ -197,12 +195,10 @@ def dashboard_employee():
             "is_over": remain_secs == 0
         })
 
-    today_record = (
-        TimeRecord.query
-        .filter_by(user_id=user_id, date=today, check_out=None)
-        .order_by(desc(TimeRecord.id))
+    today_record = time_records_query(user_id=user_id, include_open_only=True) \
+        .filter_by(date=today) \
+        .order_by(desc(TimeRecord.id)) \
         .first()
-    )
 
     # Obtener pausa activa si existe
     active_pause = (
@@ -231,12 +227,9 @@ def history():
         return redirect(url_for("auth.login"))
     user_id = session["user_id"]
 
-    recs = (
-        TimeRecord.query
-        .filter_by(user_id=user_id)
-        .order_by(desc(TimeRecord.id))
+    recs = time_records_query(user_id=user_id) \
+        .order_by(desc(TimeRecord.id)) \
         .all()
-    )
     data = []
     for r in recs:
         dur = r.check_out - r.check_in if r.check_in and r.check_out else None
@@ -556,9 +549,10 @@ def create_leave_request(client_id):
 
         # Si hay archivo adjunto, subirlo a Supabase Storage
         if file and file.filename:
-            print(f"📎 Procesando archivo adjunto: {file.filename}")
-            print(f"   Content-Type: {file.content_type}")
-            print(f"   Tamaño aproximado: {file.content_length if hasattr(file, 'content_length') else 'desconocido'}")
+            logger = get_logger(__name__)
+            logger.info(f"📎 Procesando archivo adjunto: {file.filename}")
+            logger.debug(f"   Content-Type: {file.content_type}")
+            logger.debug(f"   Tamaño aproximado: {file.content_length if hasattr(file, 'content_length') else 'desconocido'}")
 
             try:
                 success, message, file_data = upload_file_to_supabase(

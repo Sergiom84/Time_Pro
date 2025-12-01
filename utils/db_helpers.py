@@ -64,8 +64,8 @@ def db_transaction(flash_error=True):
                         }), 500
                     else:
                         flash("Error al procesar la operación. Intenta de nuevo.", "danger")
-                        # No redirigir automáticamente, dejar que la vista lo haga
-                        return None
+                        # Redirigir al referer o a la home para evitar respuestas vacías
+                        return redirect(request.referrer or url_for("index"))
                 else:
                     # Si flash_error=False, re-lanzar la excepción
                     raise

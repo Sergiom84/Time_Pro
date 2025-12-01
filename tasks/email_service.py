@@ -12,6 +12,9 @@ from flask_mail import Message
 from datetime import datetime, time
 import os
 from sqlalchemy import text
+from utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def send_notification_email_v2(mail, user, notification_type='entry'):
@@ -88,7 +91,7 @@ Time Tracker - Sistema de Control de Fichajes
 
         # Enviar el correo
         mail.send(msg)
-        print(f"[EMAIL] ✓ Correo enviado a {', '.join(recipients)} ({notification_type})")
+        logger.info("[EMAIL] Correo enviado a %s (%s)", ', '.join(recipients), notification_type)
 
         # Actualizar el timestamp de la última notificación enviada
         if notification_type == 'entry':
@@ -111,14 +114,14 @@ Time Tracker - Sistema de Control de Fichajes
 
         # Commit de todos los cambios juntos
         db.session.commit()
-        print(f"[EMAIL] ✓ Registro guardado en base de datos")
+        logger.debug("[EMAIL] Registro guardado en base de datos")
 
         return True
 
     except Exception as e:
         # Rollback en caso de error
         db.session.rollback()
-        print(f"[EMAIL] ✗ ERROR al enviar correo a {user.email}: {e}")
+        logger.error("[EMAIL] Error al enviar correo a %s: %s", user.email, e)
 
         # Intentar registrar el error en el log
         try:
@@ -135,7 +138,7 @@ Time Tracker - Sistema de Control de Fichajes
             db.session.add(log_entry)
             db.session.commit()
         except Exception as log_error:
-            print(f"[EMAIL] ✗ ERROR al guardar log de error: {log_error}")
+            logger.error("[EMAIL] Error al guardar log de error: %s", log_error)
             db.session.rollback()
 
         return False
@@ -162,7 +165,7 @@ def check_and_send_notifications_v2(app, mail):
         current_time = now.time()
         current_weekday = now.weekday()  # 0=Lunes, 6=Domingo
 
-        print(f"\n[SCHEDULER V2] 🔄 Revisando notificaciones a las {now.strftime('%H:%M:%S')}")
+        logger.info("[SCHEDULER V2] Revisando notificaciones a las %s", now.strftime('%H:%M:%S'))
 
         # Mapeo de días
         weekday_map = {
@@ -176,7 +179,7 @@ def check_and_send_notifications_v2(app, mail):
         }
 
         today_letter = weekday_map.get(current_weekday)
-        print(f"[SCHEDULER V2] 📅 Día de hoy: {today_letter}")
+        logger.debug("[SCHEDULER V2] Día de hoy: %s", today_letter)
 
         # Obtener usuarios con notificaciones activas
         users = User.query.filter_by(
@@ -184,7 +187,7 @@ def check_and_send_notifications_v2(app, mail):
             is_active=True
         ).all()
 
-        print(f"[SCHEDULER V2] 👥 Usuarios con notificaciones activas: {len(users)}")
+        logger.info("[SCHEDULER V2] Usuarios con notificaciones activas: %s", len(users))
 
         notifications_sent = 0
         notifications_skipped = 0
@@ -192,15 +195,15 @@ def check_and_send_notifications_v2(app, mail):
         for user in users:
             # Verificar si hoy es un día seleccionado
             if not user.notification_days:
-                print(f"[SCHEDULER V2] ⏭️  Usuario {user.username}: sin días configurados")
+                logger.debug("[SCHEDULER V2] Usuario %s sin días configurados", user.username)
                 continue
 
             selected_days = [day.strip() for day in user.notification_days.split(',')]
             if today_letter not in selected_days:
-                print(f"[SCHEDULER V2] ⏭️  Usuario {user.username}: hoy no está en días seleccionados ({selected_days})")
+                logger.debug("[SCHEDULER V2] Usuario %s no tiene hoy en días seleccionados %s", user.username, selected_days)
                 continue
 
-            print(f"[SCHEDULER V2] 👤 Usuario {user.username}: procesando notificaciones")
+            logger.debug("[SCHEDULER V2] Usuario %s procesando notificaciones", user.username)
 
             # MEJORA: Usar SELECT FOR UPDATE para bloquear el registro durante la verificación
             # Esto previene race conditions si múltiples procesos ejecutan al mismo tiempo
@@ -212,7 +215,7 @@ def check_and_send_notifications_v2(app, mail):
                 time_diff = (datetime.combine(datetime.today(), current_time) -
                            datetime.combine(datetime.today(), entry_time)).total_seconds() / 60
 
-                print(f"[SCHEDULER V2]   📥 Entrada: {entry_time.strftime('%H:%M')} | Diferencia: {time_diff:.1f} min")
+                logger.debug("[SCHEDULER V2] Entrada %s diferencia %.1f min", entry_time.strftime('%H:%M'), time_diff)
 
                 # MEJORA: Ventana reducida de 7 minutos (-2 a +5)
                 # Reduce las oportunidades de ejecuciones múltiples
@@ -229,21 +232,21 @@ def check_and_send_notifications_v2(app, mail):
                         if already_sent:
                             time_since_last = datetime.now() - locked_user.last_entry_notification_sent
                             if time_since_last.total_seconds() < 3600:  # Menos de 1 hora
-                                print(f"[SCHEDULER V2]   ⚠️  Ya se envió notificación de ENTRADA a {locked_user.username} hace {int(time_since_last.total_seconds()/60)} minutos")
+                                logger.debug("[SCHEDULER V2] Ya se envió notificación de ENTRADA a %s hace %s minutos", locked_user.username, int(time_since_last.total_seconds()/60))
                             else:
-                                print(f"[SCHEDULER V2]   ⚠️  Ya se envió notificación de ENTRADA a {locked_user.username} hoy")
+                                logger.debug("[SCHEDULER V2] Ya se envió notificación de ENTRADA a %s hoy", locked_user.username)
 
                     if already_sent:
                         notifications_skipped += 1
                     else:
-                        print(f"[SCHEDULER V2]   ✅ Enviando email de ENTRADA a {locked_user.username}")
+                        logger.info("[SCHEDULER V2] Enviando email de ENTRADA a %s", locked_user.username)
                         success = send_notification_email_v2(mail, locked_user, 'entry')
                         if success:
                             notifications_sent += 1
                         else:
-                            print(f"[SCHEDULER V2]   ❌ Fallo al enviar email de ENTRADA a {locked_user.username}")
+                            logger.error("[SCHEDULER V2] Fallo al enviar email de ENTRADA a %s", locked_user.username)
                 else:
-                    print(f"[SCHEDULER V2]   ⏸️  Fuera de ventana de tiempo para entrada")
+                    logger.debug("[SCHEDULER V2] Fuera de ventana de tiempo para entrada")
 
             # Refrescar el usuario bloqueado para verificar salida
             locked_user = db.session.query(User).filter_by(id=user.id).with_for_update().first()
@@ -254,7 +257,7 @@ def check_and_send_notifications_v2(app, mail):
                 time_diff = (datetime.combine(datetime.today(), current_time) -
                            datetime.combine(datetime.today(), exit_time)).total_seconds() / 60
 
-                print(f"[SCHEDULER V2]   📤 Salida: {exit_time.strftime('%H:%M')} | Diferencia: {time_diff:.1f} min")
+                logger.debug("[SCHEDULER V2] Salida %s diferencia %.1f min", exit_time.strftime('%H:%M'), time_diff)
 
                 # MEJORA: Ventana reducida de 7 minutos (-2 a +5)
                 if -2 <= time_diff <= 5:
@@ -269,23 +272,23 @@ def check_and_send_notifications_v2(app, mail):
                         if already_sent:
                             time_since_last = datetime.now() - locked_user.last_exit_notification_sent
                             if time_since_last.total_seconds() < 3600:  # Menos de 1 hora
-                                print(f"[SCHEDULER V2]   ⚠️  Ya se envió notificación de SALIDA a {locked_user.username} hace {int(time_since_last.total_seconds()/60)} minutos")
+                                logger.debug("[SCHEDULER V2] Ya se envió notificación de SALIDA a %s hace %s minutos", locked_user.username, int(time_since_last.total_seconds()/60))
                             else:
-                                print(f"[SCHEDULER V2]   ⚠️  Ya se envió notificación de SALIDA a {locked_user.username} hoy")
+                                logger.debug("[SCHEDULER V2] Ya se envió notificación de SALIDA a %s hoy", locked_user.username)
 
                     if already_sent:
                         notifications_skipped += 1
                     else:
-                        print(f"[SCHEDULER V2]   ✅ Enviando email de SALIDA a {locked_user.username}")
+                        logger.info("[SCHEDULER V2] Enviando email de SALIDA a %s", locked_user.username)
                         success = send_notification_email_v2(mail, locked_user, 'exit')
                         if success:
                             notifications_sent += 1
                         else:
-                            print(f"[SCHEDULER V2]   ❌ Fallo al enviar email de SALIDA a {locked_user.username}")
+                            logger.error("[SCHEDULER V2] Fallo al enviar email de SALIDA a %s", locked_user.username)
                 else:
-                    print(f"[SCHEDULER V2]   ⏸️  Fuera de ventana de tiempo para salida")
+                    logger.debug("[SCHEDULER V2] Fuera de ventana de tiempo para salida")
 
             # Commit del bloqueo
             db.session.commit()
 
-        print(f"[SCHEDULER V2] ✅ Revisión completada: {notifications_sent} enviados, {notifications_skipped} omitidos\n")
+        logger.info("[SCHEDULER V2] Revisión completada: %s enviados, %s omitidos", notifications_sent, notifications_skipped)

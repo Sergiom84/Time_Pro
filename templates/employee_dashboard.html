@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Panel de Empleado - Time Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body data-theme="dark-turquoise" data-logo-url="{{ client_logo_url or '' }}" class="font-sans min-h-screen m-0 p-6 sm:p-8" style="background-color: var(--bg-primary); color: var(--text-primary)">
+  <div class="mx-auto max-w-5xl">
+
+    <!-- Encabezado -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
+      <div class="flex items-center gap-6">
+        <!-- Logo círculo con borde turquesa -->
+        <div class="w-20 h-20 rounded-full border-4 bg-gray-300 flex items-center justify-center overflow-hidden" style="border-color: var(--accent-primary);">
+          <img id="clientLogo" src="{{ client_logo_url or '' }}" alt="Logo" class="w-full h-full object-cover {{ '' if client_logo_url else 'hidden' }}">
+          <span id="logoPlaceholder" class="text-gray-500 text-sm font-medium {{ 'hidden' if client_logo_url else '' }}">Logo</span>
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-4xl font-bold" style="color: var(--accent-primary);">
+            Time Tracker
+          </h1>
+          <p class="text-sm" style="color: var(--text-secondary);">
+            Bienvenido, {{ user.full_name }}
+          </p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <!-- Botón de Imputaciones -->
+        <button id="requestBtn" class="px-4 py-2 rounded-full font-semibold transition-all hover:opacity-80 flex items-center gap-2" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--accent-primary);">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+          <span class="hidden sm:inline">Imputaciones</span>
+        </button>
+
+        <!-- Botón de Notificaciones -->
+        <button id="notificationBtn" class="px-4 py-2 rounded-full font-semibold transition-all hover:opacity-80 flex items-center gap-2" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--accent-primary);">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span class="hidden sm:inline">Notificaciones</span>
+        </button>
+
+        <!-- Botón de Cerrar Sesión -->
+        <a href="{{ url_for('auth.logout') }}" class="px-6 py-2 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+          Cerrar Sesión
+        </a>
+      </div>
+    </div>
+
+    <!-- Mensajes flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div id="flash-messages" class="mb-6 space-y-3">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-lg text-sm font-medium
+              {% if category == 'danger' %} bg-red-500 border-l-4 border-red-700
+              {% elif category == 'success' %} bg-green-500 border-l-4 border-green-700
+              {% else %} border-l-4 {% endif %}"
+              style="{% if category == 'danger' %}{% elif category == 'success' %}{% else %}background-color: var(--bg-secondary); border-color: var(--accent-primary); color: var(--text-primary);{% endif %} color: white;">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Estado Actual -->
+    <div class="mb-8 p-8 rounded-2xl" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <h3 class="text-2xl font-bold mb-6" style="color: var(--accent-primary);">Estado Actual</h3>
+      {% if today_record %}
+        <div class="mb-4 p-3 rounded-lg" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+          <p class="font-semibold">Sesión de fichaje activa</p>
+        </div>
+        <div class="space-y-3" style="color: var(--text-primary);">
+          <p><strong style="color: var(--accent-primary);">Centro:</strong> {{ user.center.name if user.center else '-' }}</p>
+          <p><strong style="color: var(--accent-primary);">Entrada:</strong> {{ today_record.check_in.strftime("%d-%m-%Y %H:%M:%S") }}</p>
+          <p><strong style="color: var(--accent-primary);">Salida:</strong> <span style="color: var(--text-secondary);">Pendiente</span></p>
+
+          <!-- Estado de pausa -->
+          <p>
+            <strong style="color: var(--accent-primary);">Estado:</strong>
+            <span id="currentStatus">
+              {% if active_pause %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                      style="background-color:
+                        {% if active_pause.pause_type == 'Descanso' %}#CA8A04
+                        {% elif active_pause.pause_type == 'Hora del almuerzo' %}#10B981
+                        {% elif active_pause.pause_type == 'Asuntos médicos' %}#EF4444
+                        {% elif active_pause.pause_type == 'Desplazamientos' %}#F59E0B
+                        {% else %}#8B5CF6{% endif %}; color: white;">
+                  {{ active_pause.pause_type }}
+                  <span class="ml-2 opacity-75">desde {{ active_pause.pause_start.strftime("%H:%M") }}</span>
+                </span>
+              {% else %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" style="background-color: #10B981; color: white;">
+                  Trabajando
+                </span>
+              {% endif %}
+            </span>
+          </p>
+        </div>
+      {% else %}
+        <p style="color: var(--text-secondary);">No tienes ninguna sesión de fichaje activa.</p>
+      {% endif %}
+      {% include 'check_in_out_form.html' %}
+    </div>
+
+    {#
+    <!-- Registros recientes -->
+    <h3 class="text-xl font-medium mb-4 text-timetracker-primary">Registros recientes</h3>
+    <div class="overflow-x-auto bg-gray-900 border border-gray-700 rounded-lg">
+      <table class="min-w-full divide-y divide-gray-700 text-sm">
+        <thead>
+          <tr>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Fecha</th>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Entrada</th>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Salida</th>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Tiempo Trabajado</th>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Horas Restantes</th>
+            <th class="px-6 py-3 text-left text-gray-400 uppercase">Notas</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+          {% for item in recent_records %}
+          <tr>
+            <td class="px-6 py-4">{{ item.record.date.strftime("%d-%m-%Y") }}</td>
+            <td class="px-6 py-4">
+              {{ item.record.check_in.strftime("%H:%M:%S") if item.record.check_in else '-' }}
+            </td>
+            <td class="px-6 py-4">
+              {{ item.record.check_out.strftime("%H:%M:%S") if item.record.check_out else '-' }}
+            </td>
+            <td class="px-6 py-4">{{ item.duration_formatted }}</td>
+            <td class="px-6 py-4">
+              {% if item.remaining != "-" %}
+                {% if item.is_over %}
+                  <span class="text-red-500">●</span> -{{ item.remaining }}
+                {% else %}
+                  <span class="text-green-500">●</span> {{ item.remaining }}
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td class="px-6 py-4">{{ item.record.notes or '' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+              No hay registros recientes.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="mt-6 text-center">
+      <a href="{{ url_for('time.calendar_view') }}" class="text-timetracker-primary hover:underline">
+        Ver Calendario
+      </a>
+    </div>
+    #}
+
+  </div>
+
+  <!-- Modal de Pausas -->
+  <div id="pauseModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="rounded-2xl p-8 max-w-md w-full" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Registrar Pausa</h3>
+        <button onclick="closePauseModal()" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+      </div>
+
+      <form id="pauseForm">
+        <div class="space-y-4">
+          <div>
+            <label class="block mb-3 font-semibold" style="color: var(--text-primary);">Tipo de pausa:</label>
+            <div class="space-y-2">
+              <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-opacity-20" style="background-color: var(--bg-secondary);">
+                <input type="radio" name="pauseType" value="Descanso" checked class="w-4 h-4" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Descanso</span>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-opacity-20" style="background-color: var(--bg-secondary);">
+                <input type="radio" name="pauseType" value="Hora del almuerzo" class="w-4 h-4" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Hora del almuerzo</span>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-opacity-20" style="background-color: var(--bg-secondary);">
+                <input type="radio" name="pauseType" value="Asuntos médicos" class="w-4 h-4" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Asuntos médicos</span>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-opacity-20" style="background-color: var(--bg-secondary);">
+                <input type="radio" name="pauseType" value="Desplazamientos" class="w-4 h-4" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Desplazamientos</span>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-opacity-20" style="background-color: var(--bg-secondary);">
+                <input type="radio" name="pauseType" value="Otros" class="w-4 h-4" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Otros</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Campo de notas (siempre visible) -->
+          <div>
+            <label for="pauseNotes" class="block mb-2 font-semibold" style="color: var(--text-primary);">Notas (opcional):</label>
+            <textarea
+              id="pauseNotes"
+              name="pauseNotes"
+              rows="3"
+              class="w-full px-4 py-3 rounded-lg"
+              style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Añade una nota o comentario sobre esta pausa..."
+            ></textarea>
+          </div>
+
+          <!-- Campo para adjuntar justificante (asuntos médicos) -->
+          <div id="attachmentDiv" class="hidden">
+            <label class="block mb-2 font-semibold" style="color: var(--text-primary);">
+              📎 Adjuntar justificante (opcional)
+            </label>
+            <div class="flex items-center gap-3">
+              <input
+                type="file"
+                id="pauseAttachment"
+                name="attachment"
+                accept=".pdf,.jpg,.jpeg,.png"
+                class="hidden"
+                onchange="handlePauseFileSelect(event)"
+              >
+              <label for="pauseAttachment" class="flex-1 px-4 py-3 rounded-lg cursor-pointer text-center transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px dashed var(--border-color);">
+                <span id="pauseFileName">Seleccionar archivo (PDF, JPG, PNG)</span>
+              </label>
+              <button type="button" id="clearPauseFile" onclick="clearPauseAttachment()" class="hidden px-4 py-3 rounded-lg transition-all hover:opacity-80" style="background-color: #EF4444; color: white;">
+                ✕
+              </button>
+            </div>
+            <p class="text-xs mt-2" style="color: var(--text-secondary);">Tamaño máximo: 5MB</p>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <button type="submit" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: #CA8A04; color: white;">
+            Iniciar Pausa
+          </button>
+          <button type="button" onclick="closePauseModal()" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Imputaciones -->
+  <div id="requestModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Solicitar Imputación</h3>
+        <button onclick="closeRequestModal()" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+      </div>
+
+      <!-- Tabs para diferentes secciones -->
+      <div class="flex gap-2 mb-6 border-b" style="border-color: var(--border-color);">
+        <button id="newRequestTab" onclick="switchTab('newRequest')" class="px-4 py-2 font-semibold border-b-2 transition-all" style="color: var(--accent-primary); border-color: var(--accent-primary);">
+          Nueva Solicitud
+        </button>
+        <button id="myRequestsTab" onclick="switchTab('myRequests')" class="px-4 py-2 font-semibold border-b-2 transition-all border-transparent" style="color: var(--text-secondary);">
+          Mis Solicitudes
+        </button>
+      </div>
+
+      <!-- Tab: Nueva Solicitud -->
+      <div id="newRequestContent">
+        <form id="leaveRequestForm">
+          <div class="space-y-4">
+            <div>
+              <label for="requestType" class="block mb-2 font-semibold" style="color: var(--text-primary);">Tipo de solicitud:</label>
+              <select id="requestType" name="requestType" class="w-full px-4 py-3 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+                <option value="Vacaciones">Vacaciones</option>
+                <option value="Baja médica">Baja médica</option>
+                <option value="Ausencia justificada">Ausencia justificada</option>
+                <option value="Ausencia injustificada">Ausencia injustificada</option>
+                <option value="Permiso especial">Permiso especial</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="startDate" class="block mb-2 font-semibold" style="color: var(--text-primary);">Fecha inicio:</label>
+                <input type="date" id="startDate" name="startDate" required class="w-full px-4 py-3 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+              </div>
+              <div>
+                <label for="endDate" class="block mb-2 font-semibold" style="color: var(--text-primary);">Fecha fin:</label>
+                <input type="date" id="endDate" name="endDate" required class="w-full px-4 py-3 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+              </div>
+            </div>
+
+            <div>
+              <label for="requestReason" class="block mb-2 font-semibold" style="color: var(--text-primary);">Motivo:</label>
+              <textarea id="requestReason" name="requestReason" rows="3" class="w-full px-4 py-3 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);" placeholder="Describe el motivo de tu solicitud..."></textarea>
+            </div>
+
+            <!-- Campo para adjuntar justificante -->
+            <div id="requestAttachmentDiv">
+              <label class="block mb-2 font-semibold" style="color: var(--text-primary);">
+                📎 Adjuntar justificante (opcional)
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  type="file"
+                  id="requestAttachment"
+                  name="attachment"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  class="hidden"
+                  onchange="handleRequestFileSelect(event)"
+                >
+                <label for="requestAttachment" class="flex-1 px-4 py-3 rounded-lg cursor-pointer text-center transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px dashed var(--border-color);">
+                  <span id="requestFileName">Seleccionar archivo (PDF, JPG, PNG)</span>
+                </label>
+                <button type="button" id="clearRequestFile" onclick="clearRequestAttachment()" class="hidden px-4 py-3 rounded-lg transition-all hover:opacity-80" style="background-color: #EF4444; color: white;">
+                  ✕
+                </button>
+              </div>
+              <p class="text-xs mt-2" style="color: var(--text-secondary);">
+                Recomendado para bajas médicas y ausencias. Tamaño máximo: 5MB
+              </p>
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button type="submit" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+              Enviar Solicitud
+            </button>
+            <button type="button" onclick="closeRequestModal()" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tab: Mis Solicitudes -->
+      <div id="myRequestsContent" class="hidden">
+        <!-- Limitar altura del listado y habilitar scroll interno -->
+        <div id="requestsList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+          <!-- Las solicitudes se cargarán dinámicamente aquí -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Notificaciones -->
+  <div id="notificationModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="rounded-2xl p-8 max-w-md w-full" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Configurar Notificaciones</h3>
+        <button id="closeModal" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
+      </div>
+
+      <form id="notificationForm">
+        <!-- Activar notificaciones -->
+        <div class="mb-6">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="enableNotifications" class="w-5 h-5 rounded" style="accent-color: var(--accent-primary);">
+            <span class="font-semibold" style="color: var(--text-primary);">Recibir notificaciones por correo</span>
+          </label>
+        </div>
+
+        <!-- Información de correo -->
+        <div class="mb-6 p-4 rounded-lg" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color);">
+          <p class="text-sm mb-3" style="color: var(--text-primary);">
+            <strong style="color: var(--accent-primary);">El correo se mandará a:</strong>
+            <span style="color: var(--text-primary);">{{ user.email }}</span>
+          </p>
+
+          <div class="flex items-center gap-2 mb-2">
+            <input type="checkbox" id="enableAdditionalEmail" class="w-4 h-4 rounded" style="accent-color: var(--accent-primary);">
+            <label for="enableAdditionalEmail" class="text-sm font-semibold cursor-pointer" style="color: var(--text-primary);">
+              ¿Quieres que se envíe a otro correo también?
+            </label>
+          </div>
+
+          <div id="additionalEmailDiv" class="hidden mt-2">
+            <input
+              type="email"
+              id="additionalEmail"
+              placeholder="correo.adicional@ejemplo.com"
+              class="w-full px-4 py-2 rounded-lg text-sm"
+              style="background-color: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color);"
+            >
+          </div>
+        </div>
+
+        <div id="notificationSettings" class="space-y-6 hidden">
+          <!-- Días de la semana -->
+          <div>
+            <label class="block mb-3 font-semibold" style="color: var(--text-primary);">Días de la semana:</label>
+            <div class="flex flex-wrap gap-2">
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="L" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Lunes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="M" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Martes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="X" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Miércoles</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="J" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Jueves</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="V" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Viernes</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="S" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Sábado</span>
+              </label>
+              <label class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style="background-color: var(--bg-secondary);">
+                <input type="checkbox" name="days" value="D" class="day-checkbox" style="accent-color: var(--accent-primary);">
+                <span style="color: var(--text-primary);">Domingo</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Horarios -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block mb-2 font-semibold" style="color: var(--text-primary);">Hora entrada:</label>
+              <input type="time" id="timeEntry" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+            </div>
+            <div>
+              <label class="block mb-2 font-semibold" style="color: var(--text-primary);">Hora salida:</label>
+              <input type="time" id="timeExit" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex gap-3 mt-8">
+          <button type="submit" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
+            Guardar
+          </button>
+          <button type="button" id="cancelBtn" class="flex-1 px-6 py-3 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--border-color);">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Auto-desvanecido de mensajes flash tras 2 segundos
+    const flashMessages = document.getElementById('flash-messages');
+    if (flashMessages) {
+      setTimeout(() => {
+        flashMessages.style.transition = 'opacity 0.6s ease';
+        flashMessages.style.opacity = '0';
+        setTimeout(() => flashMessages.remove(), 800);
+      }, 2000);
+    }
+
+    // === MANEJO DEL MODAL DE PAUSAS ===
+    let currentPauseId = null;
+    let pauseInterval = null;
+
+    function openPauseModal() {
+      document.getElementById('pauseModal').classList.remove('hidden');
+      checkActivePause();
+    }
+
+    function closePauseModal() {
+      document.getElementById('pauseModal').classList.add('hidden');
+      document.getElementById('pauseForm').reset();
+    }
+
+    // Mostrar/ocultar campo de adjunto para "Asuntos médicos"
+    document.querySelectorAll('input[name="pauseType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const attachmentDiv = document.getElementById('attachmentDiv');
+
+        // Mostrar campo de adjunto solo para "Asuntos médicos"
+        if (e.target.value === 'Asuntos médicos') {
+          attachmentDiv.classList.remove('hidden');
+        } else {
+          attachmentDiv.classList.add('hidden');
+          clearPauseAttachment(); // Limpiar archivo si cambia de opción
+        }
+      });
+    });
+
+    // Manejar selección de archivo en modal de pausas
+    function handlePauseFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        // Validar tamaño
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+          alert('El archivo es demasiado grande. Tamaño máximo: 5MB');
+          event.target.value = '';
+          return;
+        }
+
+        // Mostrar nombre del archivo
+        document.getElementById('pauseFileName').textContent = file.name;
+        document.getElementById('clearPauseFile').classList.remove('hidden');
+      }
+    }
+
+    // Limpiar archivo adjunto en modal de pausas
+    function clearPauseAttachment() {
+      document.getElementById('pauseAttachment').value = '';
+      document.getElementById('pauseFileName').textContent = 'Seleccionar archivo (PDF, JPG, PNG)';
+      document.getElementById('clearPauseFile').classList.add('hidden');
+    }
+
+    const logoImg = document.getElementById('clientLogo');
+    const logoPlaceholder = document.getElementById('logoPlaceholder');
+
+    function applyLogo(url) {
+      if (!url) {
+        return false;
+      }
+      logoImg.src = url;
+      logoImg.onerror = () => {
+        logoImg.classList.add('hidden');
+        logoPlaceholder.classList.remove('hidden');
+      };
+      logoImg.onload = () => {
+        logoImg.classList.remove('hidden');
+        logoPlaceholder.classList.add('hidden');
+      };
+      return true;
+    }
+
+    // ========== CARGAR LOGO DEL CLIENTE ==========
+    async function loadClientLogo() {
+      const initialLogoUrl = document.body.dataset.logoUrl;
+      if (applyLogo(initialLogoUrl)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/api/current-client', {
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+
+        if (data.logo_url) {
+          applyLogo(data.logo_url);
+        }
+      } catch (error) {
+        console.error('Error al cargar logo del cliente:', error);
+      }
+    }
+
+    // Cargar logo al inicializar
+    loadClientLogo();
+
+    // Verificar si hay una pausa activa
+    async function checkActivePause() {
+      try {
+        const response = await fetch('/time/pause/active', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (data.active_pause) {
+          showActivePause(data.active_pause);
+        } else {
+          hideActivePause();
+        }
+      } catch (error) {
+        console.error('Error al verificar pausa activa:', error);
+      }
+    }
+
+    // Mostrar pausa activa
+    function showActivePause(pause) {
+      currentPauseId = pause.id;
+      document.getElementById('activePause').classList.remove('hidden');
+      document.getElementById('pauseType').textContent = pause.pause_type;
+      document.getElementById('pauseStartTime').textContent = pause.start_time;
+      document.getElementById('pauseBtn').disabled = true;
+      document.getElementById('pauseBtn').style.opacity = '0.5';
+
+      // Actualizar estado en el dashboard
+      updateStatusDisplay(pause.pause_type, pause.start_time);
+
+      // Actualizar duración cada segundo
+      if (pauseInterval) clearInterval(pauseInterval);
+      pauseInterval = setInterval(() => updatePauseDuration(pause.start_timestamp), 1000);
+    }
+
+    function hideActivePause() {
+      document.getElementById('activePause').classList.add('hidden');
+      document.getElementById('pauseBtn').disabled = false;
+      document.getElementById('pauseBtn').style.opacity = '1';
+
+      // Actualizar estado en el dashboard a "Trabajando"
+      updateStatusDisplay(null);
+
+      if (pauseInterval) {
+        clearInterval(pauseInterval);
+        pauseInterval = null;
+      }
+    }
+
+    // Actualizar el indicador de estado en el dashboard
+    function updateStatusDisplay(pauseType, startTime) {
+      const statusElement = document.getElementById('currentStatus');
+      if (!statusElement) return;
+
+      if (pauseType) {
+        // Hay una pausa activa
+        const colors = {
+          'Descanso': '#CA8A04',
+          'Hora del almuerzo': '#10B981',
+          'Asuntos médicos': '#EF4444',
+          'Desplazamientos': '#F59E0B',
+          'Otros': '#8B5CF6'
+        };
+        const color = colors[pauseType] || '#8B5CF6';
+
+        statusElement.innerHTML = `
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" style="background-color: ${color}; color: white;">
+            ${pauseType}
+            <span class="ml-2 opacity-75">desde ${startTime}</span>
+          </span>
+        `;
+      } else {
+        // Trabajando
+        statusElement.innerHTML = `
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" style="background-color: #10B981; color: white;">
+            Trabajando
+          </span>
+        `;
+      }
+    }
+
+    function updatePauseDuration(startTime) {
+      const start = new Date(startTime);
+      const now = new Date();
+      const diff = Math.floor((now - start) / 1000);
+      const hours = Math.floor(diff / 3600);
+      const minutes = Math.floor((diff % 3600) / 60);
+      const seconds = diff % 60;
+
+      const duration = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      document.getElementById('pauseDuration').textContent = duration;
+    }
+
+    // Manejar formulario de pausa
+    document.getElementById('pauseForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const pauseType = document.querySelector('input[name="pauseType"]:checked').value;
+      const notes = document.getElementById('pauseNotes').value || '';
+      const fileInput = document.getElementById('pauseAttachment');
+      const hasFile = fileInput.files.length > 0;
+
+      try {
+        let response;
+
+        if (hasFile) {
+          // Enviar como FormData cuando hay archivo
+          const formData = new FormData();
+          formData.append('pause_type', pauseType);
+          formData.append('notes', notes);
+          formData.append('attachment', fileInput.files[0]);
+
+          response = await fetch('/time/pause/start', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData // No incluir Content-Type header, fetch lo hará automáticamente
+          });
+        } else {
+          // Enviar como JSON cuando no hay archivo
+          response = await fetch('/time/pause/start', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              pause_type: pauseType,
+              notes: notes
+            })
+          });
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          closePauseModal();
+          const message = data.attachment
+            ? `Pausa iniciada correctamente\nJustificante adjuntado: ${data.attachment.filename}`
+            : 'Pausa iniciada correctamente';
+          alert(message);
+          // Recargar la página para mostrar el estado actualizado
+          window.location.reload();
+        } else {
+          alert('Error: ' + (data.error || 'No se pudo iniciar la pausa'));
+        }
+      } catch (error) {
+        console.error('Error al iniciar pausa:', error);
+        alert('Error al iniciar la pausa');
+      }
+    });
+
+    // Terminar pausa
+    async function endPause() {
+      if (!currentPauseId) return;
+
+      try {
+        const response = await fetch(`/time/pause/end/${currentPauseId}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert('Pausa finalizada correctamente');
+          // Recargar la página para mostrar el estado actualizado
+          window.location.reload();
+        } else {
+          alert('Error: ' + (data.error || 'No se pudo finalizar la pausa'));
+        }
+      } catch (error) {
+        console.error('Error al finalizar pausa:', error);
+        alert('Error al finalizar la pausa');
+      }
+    }
+
+    // === MANEJO DEL MODAL DE IMPUTACIONES ===
+    const requestModal = document.getElementById('requestModal');
+    const requestBtn = document.getElementById('requestBtn');
+
+    requestBtn.addEventListener('click', () => {
+      requestModal.classList.remove('hidden');
+      loadMyRequests();
+    });
+
+    function closeRequestModal() {
+      requestModal.classList.add('hidden');
+      document.getElementById('leaveRequestForm').reset();
+    }
+
+    // Cambiar entre tabs
+    function switchTab(tab) {
+      const newRequestTab = document.getElementById('newRequestTab');
+      const myRequestsTab = document.getElementById('myRequestsTab');
+      const newRequestContent = document.getElementById('newRequestContent');
+      const myRequestsContent = document.getElementById('myRequestsContent');
+
+      if (tab === 'newRequest') {
+        newRequestTab.style.color = 'var(--accent-primary)';
+        newRequestTab.style.borderColor = 'var(--accent-primary)';
+        myRequestsTab.style.color = 'var(--text-secondary)';
+        myRequestsTab.style.borderColor = 'transparent';
+
+        newRequestContent.classList.remove('hidden');
+        myRequestsContent.classList.add('hidden');
+      } else {
+        myRequestsTab.style.color = 'var(--accent-primary)';
+        myRequestsTab.style.borderColor = 'var(--accent-primary)';
+        newRequestTab.style.color = 'var(--text-secondary)';
+        newRequestTab.style.borderColor = 'transparent';
+
+        myRequestsContent.classList.remove('hidden');
+        newRequestContent.classList.add('hidden');
+
+        loadMyRequests();
+      }
+    }
+
+    // Manejar selección de archivo en modal de solicitudes
+    function handleRequestFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        // Validar tamaño
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+          alert('El archivo es demasiado grande. Tamaño máximo: 5MB');
+          event.target.value = '';
+          return;
+        }
+
+        // Mostrar nombre del archivo
+        document.getElementById('requestFileName').textContent = file.name;
+        document.getElementById('clearRequestFile').classList.remove('hidden');
+      }
+    }
+
+    // Limpiar archivo adjunto en modal de solicitudes
+    function clearRequestAttachment() {
+      document.getElementById('requestAttachment').value = '';
+      document.getElementById('requestFileName').textContent = 'Seleccionar archivo (PDF, JPG, PNG)';
+      document.getElementById('clearRequestFile').classList.add('hidden');
+    }
+
+    // Cargar solicitudes del empleado
+    async function loadMyRequests() {
+      try {
+        const response = await fetch('/time/requests/my', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        const requestsList = document.getElementById('requestsList');
+        requestsList.innerHTML = '';
+
+        if (data.requests && data.requests.length > 0) {
+          data.requests.forEach(request => {
+            const statusColor = {
+              'Pendiente': '#FFA500',
+              'Aprobado': '#4CAF50',
+              'Rechazado': '#FF4444',
+              'Cancelado': '#999999',
+              'Enviado': '#3B82F6',
+              'Recibido': '#10B981'
+            }[request.status] || '#999999';
+
+            // Determinar el texto del estado según el tipo de solicitud
+            let statusText = request.status;
+            if (request.request_type === 'Vacaciones' || request.request_type === 'Permiso especial') {
+              // Para vacaciones y permisos: Pendiente o Aprobado
+              if (request.status === 'Enviado') statusText = 'Pendiente';
+            } else {
+              // Para bajas y ausencias: Enviado o Recibido
+              if (request.status === 'Pendiente') statusText = 'Enviado';
+            }
+
+            // Convertir fechas a formato día/mes/año
+            const formatDate = (dateStr) => {
+              if (!dateStr) return '';
+              // Si viene como YYYY-MM-DD o similar
+              const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
+              if (parts.length === 3) {
+                // Si es YYYY-MM-DD
+                if (parts[0].length === 4) {
+                  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+                // Si ya es DD/MM/YYYY
+                return dateStr;
+              }
+              return dateStr;
+            };
+
+            const requestCard = document.createElement('div');
+            requestCard.className = 'p-4 rounded-lg';
+            requestCard.style.backgroundColor = 'var(--bg-secondary)';
+            requestCard.style.border = '1px solid var(--border-color)';
+
+            requestCard.innerHTML = `
+              <div class="flex justify-between items-start mb-2">
+                <h4 class="font-semibold" style="color: var(--text-primary);">${request.request_type}</h4>
+                <span class="px-2 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${statusColor};">
+                  ${statusText}
+                </span>
+              </div>
+              <p class="text-sm mb-1" style="color: var(--text-secondary);">
+                <strong>Fechas:</strong> ${formatDate(request.start_date)} - ${formatDate(request.end_date)}
+              </p>
+              ${request.reason ? `<p class="text-sm" style="color: var(--text-secondary);"><strong>Motivo:</strong> ${request.reason}</p>` : ''}
+              ${(request.status === 'Pendiente' || request.status === 'Enviado') ? `
+                <button onclick="cancelRequest(${request.id})" class="mt-2 px-3 py-1 rounded text-sm font-semibold text-white" style="background-color: #FF4444;">
+                  Cancelar
+                </button>
+              ` : ''}
+            `;
+
+            requestsList.appendChild(requestCard);
+          });
+        } else {
+          requestsList.innerHTML = '<p style="color: var(--text-secondary);">No tienes solicitudes registradas.</p>';
+        }
+      } catch (error) {
+        console.error('Error al cargar solicitudes:', error);
+        document.getElementById('requestsList').innerHTML = '<p style="color: var(--text-secondary);">Error al cargar las solicitudes.</p>';
+      }
+    }
+
+    // Cancelar solicitud
+    async function cancelRequest(requestId) {
+      if (!confirm('¿Estás seguro de que deseas cancelar esta solicitud?')) return;
+
+      try {
+        const response = await fetch(`/time/requests/cancel/${requestId}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert('Solicitud cancelada correctamente');
+          loadMyRequests();
+        } else {
+          alert('Error: ' + (data.error || 'No se pudo cancelar la solicitud'));
+        }
+      } catch (error) {
+        console.error('Error al cancelar solicitud:', error);
+        alert('Error al cancelar la solicitud');
+      }
+    }
+
+    // Manejar formulario de nueva solicitud
+    document.getElementById('leaveRequestForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const fileInput = document.getElementById('requestAttachment');
+      const hasFile = fileInput.files.length > 0;
+
+      try {
+        let response;
+
+        if (hasFile) {
+          // Enviar como FormData cuando hay archivo
+          const formData = new FormData();
+          formData.append('request_type', document.getElementById('requestType').value);
+          formData.append('start_date', document.getElementById('startDate').value);
+          formData.append('end_date', document.getElementById('endDate').value);
+          formData.append('reason', document.getElementById('requestReason').value);
+          formData.append('attachment', fileInput.files[0]);
+
+          response = await fetch('/time/requests/new', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+          });
+        } else {
+          // Enviar como JSON cuando no hay archivo
+          const requestData = {
+            request_type: document.getElementById('requestType').value,
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value,
+            reason: document.getElementById('requestReason').value
+          };
+
+          response = await fetch('/time/requests/new', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+          });
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          let message = data.auto_approved
+            ? 'Solicitud aprobada automáticamente'
+            : 'Solicitud enviada y pendiente de aprobación';
+
+          if (data.attachment) {
+            message += `\nJustificante adjuntado: ${data.attachment.filename}`;
+          }
+
+          alert(message);
+          document.getElementById('leaveRequestForm').reset();
+          clearRequestAttachment(); // Limpiar campo de archivo
+          switchTab('myRequests');
+        } else {
+          alert('Error: ' + (data.error || 'No se pudo enviar la solicitud'));
+        }
+      } catch (error) {
+        console.error('Error al enviar solicitud:', error);
+        alert('Error al enviar la solicitud');
+      }
+    });
+
+    // Verificar pausa activa al cargar la página
+    window.addEventListener('load', () => {
+      checkActivePause();
+    });
+
+    // === MANEJO DEL MODAL DE NOTIFICACIONES ===
+    const modal = document.getElementById('notificationModal');
+    const notificationBtn = document.getElementById('notificationBtn');
+    const closeModal = document.getElementById('closeModal');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const enableNotifications = document.getElementById('enableNotifications');
+    const notificationSettings = document.getElementById('notificationSettings');
+    const notificationForm = document.getElementById('notificationForm');
+
+    // Abrir modal
+    notificationBtn.addEventListener('click', async () => {
+      modal.classList.remove('hidden');
+      await loadPreferences();
+    });
+
+    // Cerrar modal
+    const closeModalFn = () => {
+      modal.classList.add('hidden');
+    };
+    closeModal.addEventListener('click', closeModalFn);
+    cancelBtn.addEventListener('click', closeModalFn);
+
+    // Mostrar/ocultar opciones al marcar checkbox
+    enableNotifications.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        notificationSettings.classList.remove('hidden');
+      } else {
+        notificationSettings.classList.add('hidden');
+      }
+    });
+
+    // Mostrar/ocultar campo de correo adicional
+    const enableAdditionalEmail = document.getElementById('enableAdditionalEmail');
+    const additionalEmailDiv = document.getElementById('additionalEmailDiv');
+
+    enableAdditionalEmail.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        additionalEmailDiv.classList.remove('hidden');
+      } else {
+        additionalEmailDiv.classList.add('hidden');
+      }
+    });
+
+    // Cargar preferencias actuales
+    async function loadPreferences() {
+      try {
+        const response = await fetch('/notifications/preferences', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        enableNotifications.checked = data.email_notifications;
+        if (data.email_notifications) {
+          notificationSettings.classList.remove('hidden');
+        }
+
+        // Cargar días seleccionados
+        const selectedDays = data.notification_days.split(',').map(d => d.trim());
+        document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+          checkbox.checked = selectedDays.includes(checkbox.value);
+        });
+
+        // Cargar horarios
+        document.getElementById('timeEntry').value = data.notification_time_entry || '';
+        document.getElementById('timeExit').value = data.notification_time_exit || '';
+
+        // Cargar correo adicional si existe
+        if (data.additional_notification_email) {
+          document.getElementById('enableAdditionalEmail').checked = true;
+          document.getElementById('additionalEmailDiv').classList.remove('hidden');
+          document.getElementById('additionalEmail').value = data.additional_notification_email;
+        }
+
+      } catch (error) {
+        console.error('Error al cargar preferencias:', error);
+      }
+    }
+
+    // Guardar preferencias
+    notificationForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const enabled = enableNotifications.checked;
+      const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked'))
+        .map(cb => cb.value)
+        .join(',');
+      const timeEntry = document.getElementById('timeEntry').value;
+      const timeExit = document.getElementById('timeExit').value;
+
+      // Obtener correo adicional si está habilitado
+      const additionalEmailEnabled = document.getElementById('enableAdditionalEmail').checked;
+      const additionalEmail = additionalEmailEnabled ? document.getElementById('additionalEmail').value : '';
+
+      try {
+        const response = await fetch('/notifications/preferences', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email_notifications: enabled,
+            notification_days: selectedDays,
+            notification_time_entry: timeEntry,
+            notification_time_exit: timeExit,
+            additional_notification_email: additionalEmail
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Mostrar mensaje de éxito
+          alert('Preferencias guardadas correctamente');
+          closeModalFn();
+        } else {
+          alert('Error: ' + (data.error || 'No se pudieron guardar las preferencias'));
+        }
+      } catch (error) {
+        console.error('Error al guardar preferencias:', error);
+        alert('Error al guardar las preferencias');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -225,8 +225,16 @@ class WorkPause(db.Model):
     attachment_size = db.Column(db.Integer, nullable=True)
 
     # Relaciones
-    user_rel = db.relationship("User", backref="work_pauses", lazy=True)
-    time_record_rel = db.relationship("TimeRecord", backref="pauses", lazy=True)
+    user_rel = db.relationship(
+        "User",
+        backref=db.backref("work_pauses", passive_deletes=True),
+        lazy=True
+    )
+    time_record_rel = db.relationship(
+        "TimeRecord",
+        backref=db.backref("pauses", passive_deletes=True),
+        lazy=True
+    )
 
     def __repr__(self):
         return f"<WorkPause {self.id} - {self.pause_type}>"
@@ -273,7 +281,12 @@ class LeaveRequest(db.Model):
     attachment_size = db.Column(db.Integer, nullable=True)
 
     # Relaciones
-    user_rel = db.relationship("User", foreign_keys=[user_id], backref="leave_requests", lazy=True)
+    user_rel = db.relationship(
+        "User",
+        foreign_keys=[user_id],
+        backref=db.backref("leave_requests", passive_deletes=True),
+        lazy=True
+    )
     approver_rel = db.relationship("User", foreign_keys=[approved_by], backref="approved_requests", lazy=True)
 
     def __repr__(self):
