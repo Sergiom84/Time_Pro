@@ -120,7 +120,8 @@
           {'endpoint': 'admin.dashboard',    'label': 'Dashboard'},
           {'endpoint': 'admin.manage_users', 'label': 'Gestionar Usuarios'},
           {'endpoint': 'admin.manage_records','label': 'Gestionar Registros'},
-          {'endpoint': 'admin.leave_requests','label': 'Gestión de Solicitudes'},
+          {'endpoint': 'admin.leave_requests','label': 'Gesti�n de Solicitudes'},
+          {'endpoint': 'admin.overtime_dashboard','label': 'Gesti�n de Horas'},
           {'endpoint': 'admin.admin_calendar',     'label': 'Calendario'},
           {'endpoint': 'export.export_excel',   'label': 'Exportar Excel'}
         ] %}
@@ -579,14 +580,23 @@
     async function loadNotificationCount() {
       try {
         // Obtener SOLO solicitudes pendientes (no auto-aprobadas)
-        const response = await fetch('/admin/notifications/pending-requests');
-        const pendingData = await response.json();
+        const responseRequests = await fetch('/admin/notifications/pending-requests');
+        const pendingData = await responseRequests.json();
+
+        // Obtener horas extras pendientes
+        const responseOvertime = await fetch('/admin/notifications/pending-overtime');
+        const overtimeData = await responseOvertime.json();
 
         let totalCount = 0;
 
         // Contar solo solicitudes pendientes
         if (pendingData.success) {
-          totalCount = pendingData.total;
+          totalCount += pendingData.total;
+        }
+
+        // Sumar horas extras pendientes
+        if (overtimeData.count) {
+          totalCount += overtimeData.count;
         }
 
         updateNotificationBadge(totalCount);
@@ -732,15 +742,129 @@
   <div id="notificationsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
     <div class="rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-card); border: 2px solid var(--border-color); box-shadow: var(--shadow-lg);">
       <div class="flex justify-between items-center mb-6">
-        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Notificaciones de Bajas y Ausencias</h3>
+        <h3 class="text-2xl font-bold" style="color: var(--accent-primary);">Notificaciones</h3>
         <button onclick="closeNotificationsModal()" class="text-2xl hover:opacity-70" style="color: var(--text-primary);">&times;</button>
       </div>
 
-      <div id="notificationsList" class="space-y-3">
-        <!-- Las notificaciones se cargarán dinámicamente aquí -->
+      <!-- Tabs -->
+      <div class="flex gap-2 mb-4 border-b" style="border-color: var(--border-color);">
+        <button onclick="switchNotificationTab('requests')" id="tab-requests"
+                class="px-4 py-2 font-semibold border-b-2 transition-all" style="color: var(--accent-primary); border-color: var(--accent-primary);">
+          Solicitudes
+        </button>
+        <button onclick="switchNotificationTab('overtime')" id="tab-overtime"
+                class="px-4 py-2 font-semibold transition-all hover:opacity-70" style="color: var(--text-secondary);">
+          Horas Extras
+        </button>
+      </div>
+
+      <!-- Contenido de Solicitudes -->
+      <div id="notifications-requests-content">
+        <div id="notificationsList" class="space-y-3">
+          <!-- Las notificaciones de solicitudes se cargarán dinámicamente aquí -->
+        </div>
+      </div>
+
+      <!-- Contenido de Horas Extras -->
+      <div id="notifications-overtime-content" class="hidden">
+        <div id="overtimeNotificationsList" class="space-y-3">
+          <p class="text-center" style="color: var(--text-secondary);">Cargando...</p>
+        </div>
+      </div>
+
+      <!-- Footer con link "Ver todas" -->
+      <div class="mt-6 text-center">
+        <a href="#" id="viewAllLink" class="text-sm transition-all hover:opacity-70" style="color: var(--accent-primary);">
+          Ver todas las solicitudes →
+        </a>
       </div>
     </div>
   </div>
+
+  <script>
+    // Variable global para trackear si se cargaron horas extras
+    window.overtimeLoaded = false;
+
+    function switchNotificationTab(tab) {
+      // Actualizar estilos de botones
+      const btnRequests = document.getElementById('tab-requests');
+      const btnOvertime = document.getElementById('tab-overtime');
+
+      if (tab === 'requests') {
+        btnRequests.className = 'px-4 py-2 font-semibold border-b-2 transition-all';
+        btnRequests.style.color = 'var(--accent-primary)';
+        btnRequests.style.borderColor = 'var(--accent-primary)';
+
+        btnOvertime.className = 'px-4 py-2 font-semibold transition-all hover:opacity-70';
+        btnOvertime.style.color = 'var(--text-secondary)';
+        btnOvertime.style.borderColor = 'transparent';
+      } else {
+        btnOvertime.className = 'px-4 py-2 font-semibold border-b-2 transition-all';
+        btnOvertime.style.color = 'var(--accent-primary)';
+        btnOvertime.style.borderColor = 'var(--accent-primary)';
+
+        btnRequests.className = 'px-4 py-2 font-semibold transition-all hover:opacity-70';
+        btnRequests.style.color = 'var(--text-secondary)';
+        btnRequests.style.borderColor = 'transparent';
+      }
+
+      // Mostrar/ocultar contenido
+      document.getElementById('notifications-requests-content').classList.toggle('hidden', tab !== 'requests');
+      document.getElementById('notifications-overtime-content').classList.toggle('hidden', tab !== 'overtime');
+
+      // Actualizar link "Ver todas"
+      const viewAllLink = document.getElementById('viewAllLink');
+      if (tab === 'requests') {
+        viewAllLink.href = "{{ url_for('admin.leave_requests') }}";
+        viewAllLink.textContent = 'Ver todas las solicitudes →';
+      } else {
+        viewAllLink.href = "{{ url_for('admin.overtime_dashboard') }}";
+        viewAllLink.textContent = 'Ver todas las horas extras →';
+      }
+
+      // Cargar datos de horas extras si no están cargados
+      if (tab === 'overtime' && !window.overtimeLoaded) {
+        loadOvertimeNotifications();
+      }
+    }
+
+    async function loadOvertimeNotifications() {
+      try {
+        const response = await fetch('/admin/notifications/pending-overtime-details');
+        const data = await response.json();
+
+        const list = document.getElementById('overtimeNotificationsList');
+
+        if (data.entries && data.entries.length > 0) {
+          list.innerHTML = data.entries.map(entry => `
+            <div class="p-4 rounded transition-all hover:opacity-90" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color);">
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="font-semibold" style="color: var(--text-primary);">${entry.user_name}</div>
+                  <div class="text-sm mt-1" style="color: var(--text-secondary);">
+                    Semana: ${entry.week_start} - ${entry.week_end}<br>
+                    Diferencia: <span class="${entry.overtime_hours.startsWith('+') ? 'text-red-500' : 'text-amber-500'} font-semibold">${entry.overtime_hours}h</span>
+                  </div>
+                </div>
+                <a href="{{ url_for('admin.overtime_dashboard') }}?week=${entry.week_start_iso}"
+                   class="px-3 py-1 rounded text-white text-xs transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
+                  Gestionar
+                </a>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          list.innerHTML = '<p class="text-center py-6" style="color: var(--text-secondary);">No hay horas extras pendientes</p>';
+        }
+
+        window.overtimeLoaded = true;
+      } catch (error) {
+        console.error('Error loading overtime notifications:', error);
+        document.getElementById('overtimeNotificationsList').innerHTML =
+          '<p class="text-center text-red-400">Error al cargar notificaciones</p>';
+      }
+    }
+  </script>
   {% endif %}
 </body>
 </html>

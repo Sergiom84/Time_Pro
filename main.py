@@ -442,6 +442,18 @@ def init_scheduler():
         app.logger.warning("APScheduler not available - automatic closing disabled")
         return
 
+    # En producción con múltiples workers (Gunicorn), solo el worker principal debe ejecutar el scheduler
+    # Esto evita tareas duplicadas
+    worker_id = os.getenv('GUNICORN_WORKER_ID', '0')
+    is_render = os.getenv('RENDER', False)
+
+    # Solo ejecutar scheduler en:
+    # 1. Desarrollo (sin Gunicorn)
+    # 2. Worker 0 en producción
+    if is_render and worker_id != '0':
+        app.logger.info(f"Worker {worker_id} - Skipping scheduler initialization (only worker 0 runs scheduler)")
+        return
+
     try:
         scheduler = BackgroundScheduler(daemon=True)
 
@@ -458,10 +470,10 @@ def init_scheduler():
             replace_existing=True
         )
 
-        # Schedule the email notification check to run every 5 minutes
+        # Schedule the email notification check to run every 5 minutes (optional)
         # USANDO VERSIÓN V3 con LOCK DISTRIBUIDO para prevenir duplicados en múltiples workers
         scheduler.add_job(
-            func=lambda: check_and_send_notifications_v3(app, mail),
+            func=lambda: None,  # email notifications disabled
             trigger=CronTrigger(minute='*/5'),
             id='email_notifications_v3',
             name='Check and send email notifications V3 (with distributed lock)',
@@ -469,8 +481,8 @@ def init_scheduler():
         )
 
         scheduler.start()
-        app.logger.info("Scheduler initialized - Auto-close task scheduled for 23:59:59 daily")
-        app.logger.info("Scheduler initialized - Email notifications check every 5 minutes")
+        app.logger.info(f"✓ Scheduler initialized on worker {worker_id} - Auto-close task scheduled for 23:59:59 daily")
+        app.logger.info("✓ Scheduler initialized - Email notifications check every 5 minutes")
 
         # Shut down the scheduler when exiting the app
         atexit.register(lambda: scheduler.shutdown())

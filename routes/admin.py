@@ -4,12 +4,16 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime, date, timedelta
-from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause, Category, Center
+from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause, Category, Center, OvertimeEntry
 from services.category_service import CategoryService
 from services.exceptions import ResourceNotFound, ResourceAlreadyExists, ValidationError, OperationNotAllowed
 from models.database import db
 import plan_config  # Sistema de configuración multi-plan
 from utils.multitenant import get_client_config
+from services.overtime_service import (
+    get_week_bounds, calculate_weekly_worked_seconds,
+    generate_overtime_entries_for_week, adjust_last_timerecord_auto
+)
 from utils.auth_decorators import admin_required
 from utils.helpers import format_timedelta
 from utils.query_helpers import time_records_query, work_pauses_query
@@ -1469,9 +1473,28 @@ def open_records():
         record = TimeRecord.query.get(record_id)
         if record and close_time:
             try:
-                record.check_out = datetime.strptime(close_time, "%Y-%m-%dT%H:%M")
+                close_datetime = datetime.strptime(close_time, "%Y-%m-%dT%H:%M")
+                record.check_out = close_datetime
+
+                # NUEVO: Cerrar también las pausas activas asociadas
+                from models.models import WorkPause
+                active_pauses = WorkPause.query.filter(
+                    WorkPause.time_record_id == record.id,
+                    WorkPause.pause_end.is_(None)
+                ).all()
+
+                pauses_closed = 0
+                for pause in active_pauses:
+                    pause.pause_end = close_datetime
+                    pause.notes = (pause.notes or "") + (" - " if pause.notes else "") + "Cerrado por administrador"
+                    pauses_closed += 1
+
                 db.session.commit()
-                flash("Registro cerrado correctamente.", "success")
+
+                if pauses_closed > 0:
+                    flash(f"Registro cerrado correctamente. También se cerraron {pauses_closed} pausa(s) activa(s).", "success")
+                else:
+                    flash("Registro cerrado correctamente.", "success")
             except Exception as e:
                 flash(f"Error al cerrar: {e}", "danger")
         return redirect(url_for("admin.open_records"))
@@ -1747,6 +1770,291 @@ def reject_leave_request(request_id):
         flash(f"Error al rechazar la solicitud: {str(e)}", "danger")
 
     return redirect(url_for("admin.leave_requests"))
+
+
+# --------------------------------------------------------------------
+#  GESTIÓN DE HORAS EXTRAS
+# --------------------------------------------------------------------
+@admin_bp.route("/overtime")
+@admin_required
+def overtime_dashboard():
+    """Dashboard principal de gestión de horas extras"""
+    client_id = session.get("client_id")
+    centro_admin = get_admin_centro()
+
+    # Obtener parámetros
+    selected_week = request.args.get("week", "")
+    tab = request.args.get("tab", "pending")  # pending o history
+
+    # Si no hay semana seleccionada, usar la actual
+    if not selected_week:
+        today = date.today()
+        week_start, week_end = get_week_bounds(today)
+        selected_week = week_start.isoformat()
+    else:
+        try:
+            week_start = datetime.strptime(selected_week, "%Y-%m-%d").date()
+            week_start, week_end = get_week_bounds(week_start)
+        except ValueError:
+            today = date.today()
+            week_start, week_end = get_week_bounds(today)
+            selected_week = week_start.isoformat()
+
+    # Calcular semanas de navegación
+    prev_week = (week_start - timedelta(days=7)).isoformat()
+    next_week = (week_start + timedelta(days=7)).isoformat()
+
+    # Generar entradas de horas extras para la semana seleccionada
+    generate_overtime_entries_for_week(client_id, week_start)
+
+    # Query base con joins
+    base_query = (
+        OvertimeEntry.query
+        .join(User, OvertimeEntry.user_id == User.id)
+        .filter(OvertimeEntry.week_start == week_start)
+    )
+
+    # Aplicar filtro de centro si es admin de centro
+    if centro_admin:
+        base_query = base_query.filter(User.center_id == centro_admin)
+
+    # Separar vistas:
+    # - Pendientes: semanas con déficit (horas por debajo de la jornada) en estado Pendiente
+    # - Extras: semanas con exceso de horas en estado Pendiente
+    # - Histórico: horas extras ya gestionadas (Aprobadas/Ajustadas/Rechazadas)
+    if tab == "pending":
+        entries = base_query.filter(
+            OvertimeEntry.status == "Pendiente",
+            OvertimeEntry.overtime_seconds < 0
+        ).all()
+    elif tab == "extras":
+        entries = base_query.filter(
+            OvertimeEntry.status == "Pendiente",
+            OvertimeEntry.overtime_seconds > 0
+        ).all()
+    else:  # history
+        entries = base_query.filter(
+            OvertimeEntry.status.in_(["Aprobado", "Ajustado", "Rechazado"]),
+            OvertimeEntry.overtime_seconds > 0
+        ).all()
+
+    # Enriquecer datos para la vista
+    enriched_entries = []
+    for entry in entries:
+        user = entry.user_rel
+
+        # Calcular horas en formato legible
+        worked_hours = entry.total_worked_seconds / 3600
+        contract_hours = entry.contract_seconds / 3600
+        overtime_hours = entry.overtime_seconds / 3600
+
+        enriched_entries.append({
+            "entry": entry,
+            "user": user,
+            "center": user.center.name if user.center else "Sin centro",
+            "category": user.category.name if user.category else "Sin categoría",
+            "worked_hours": f"{worked_hours:.2f}",
+            "contract_hours": f"{contract_hours:.2f}",
+            "overtime_hours": f"{overtime_hours:+.2f}",
+            "kind": entry.kind,  # EXTRA, DEFICIT, OK
+            "is_overtime": entry.overtime_seconds > 3600,
+            "is_deficit": entry.overtime_seconds < -3600,
+            "employee_notes": "-",
+            "admin_notes": entry.decision_notes or "",
+        })
+
+    return render_template(
+        "admin_overtime.html",
+        entries=enriched_entries,
+        selected_week=selected_week,
+        week_start=week_start,
+        week_end=week_end,
+        prev_week=prev_week,
+        next_week=next_week,
+        tab=tab,
+        centro_admin=centro_admin
+    )
+
+
+@admin_bp.route("/overtime/adjust/<int:entry_id>", methods=["POST"])
+@admin_required
+def overtime_adjust(entry_id):
+    """Ajustar horas extras (automático o manual)"""
+    client_id = session.get("client_id")
+    admin_id = session.get("user_id")
+
+    entry = OvertimeEntry.query.get_or_404(entry_id)
+
+    # Verificar pertenencia al cliente
+    if entry.client_id != client_id:
+        abort(403)
+
+    # Obtener modo de ajuste
+    mode = request.form.get("mode", "auto")  # auto o manual
+
+    if mode == "auto":
+        # Ajuste automático
+        success = adjust_last_timerecord_auto(
+            entry.user_id,
+            entry.week_start,
+            entry.week_end,
+            entry.contract_seconds
+        )
+
+        if success:
+            entry.status = "Ajustado"
+            entry.decided_by = admin_id
+            entry.decided_at = datetime.utcnow()
+            entry.decision_notes = "Ajuste automático aplicado"
+            db.session.commit()
+
+            flash("Horas ajustadas automáticamente", "success")
+        else:
+            flash("No se pudo realizar el ajuste automático", "danger")
+
+    else:  # manual
+        # Redirigir a Gestionar Registros con filtros
+        return redirect(
+            url_for(
+                "admin.manage_records",
+                user=entry.user_rel.username,
+                start_date=entry.week_start.isoformat(),
+                end_date=entry.week_end.isoformat(),
+                manual_adjust_notice=1
+            )
+        )
+
+    return redirect(url_for("admin.overtime_dashboard", week=entry.week_start.isoformat()))
+
+
+@admin_bp.route("/overtime/approve/<int:entry_id>", methods=["POST"])
+@admin_required
+def overtime_approve(entry_id):
+    """Aprobar horas extras"""
+    client_id = session.get("client_id")
+    admin_id = session.get("user_id")
+
+    entry = OvertimeEntry.query.get_or_404(entry_id)
+
+    if entry.client_id != client_id:
+        abort(403)
+
+    # Marcar como aprobado
+    entry.status = "Aprobado"
+    entry.decided_by = admin_id
+    entry.decided_at = datetime.utcnow()
+    entry.decision_notes = request.form.get("notes", "Horas extras aprobadas")
+
+    db.session.commit()
+
+    flash(f"Horas extras de {entry.user_rel.full_name} aprobadas", "success")
+    return redirect(url_for("admin.overtime_dashboard", week=entry.week_start.isoformat()))
+
+
+@admin_bp.route("/overtime/reject/<int:entry_id>", methods=["POST"])
+@admin_required
+def overtime_reject(entry_id):
+    """Rechazar horas extras"""
+    client_id = session.get("client_id")
+    admin_id = session.get("user_id")
+
+    entry = OvertimeEntry.query.get_or_404(entry_id)
+
+    if entry.client_id != client_id:
+        abort(403)
+
+    # Marcar como rechazado
+    entry.status = "Rechazado"
+    entry.decided_by = admin_id
+    entry.decided_at = datetime.utcnow()
+    entry.decision_notes = request.form.get("notes", "Horas extras rechazadas")
+
+    db.session.commit()
+
+    flash(f"Horas extras de {entry.user_rel.full_name} rechazadas", "danger")
+    return redirect(url_for("admin.overtime_dashboard", week=entry.week_start.isoformat()))
+
+
+@admin_bp.route("/notifications/pending-overtime")
+@admin_required
+def get_pending_overtime_count():
+    """API para obtener el contador de horas extras pendientes (para campanita)"""
+    client_id = session.get("client_id")
+    centro_admin = get_admin_centro()
+
+    query = OvertimeEntry.query.filter_by(status="Pendiente")
+
+    if centro_admin:
+        query = query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro_admin)
+
+    count = query.count()
+
+    return jsonify({"count": count})
+
+
+@admin_bp.route("/notifications/pending-overtime-details")
+@admin_required
+def get_pending_overtime_details():
+    """API para obtener detalles de horas extras pendientes (para modal de campanita)"""
+    client_id = session.get("client_id")
+    centro_admin = get_admin_centro()
+
+    query = (
+        OvertimeEntry.query
+        .join(User, OvertimeEntry.user_id == User.id)
+        .filter(OvertimeEntry.status == "Pendiente")
+    )
+
+    if centro_admin:
+        query = query.filter(User.center_id == centro_admin)
+
+    entries = query.order_by(OvertimeEntry.created_at.desc()).limit(5).all()
+
+    entries_data = []
+    for entry in entries:
+        overtime_hours = entry.overtime_seconds / 3600
+        entries_data.append({
+            "id": entry.id,
+            "user_name": entry.user_rel.full_name,
+            "week_start": entry.week_start.strftime("%d/%m/%Y"),
+            "week_end": entry.week_end.strftime("%d/%m/%Y"),
+            "week_start_iso": entry.week_start.isoformat(),
+            "overtime_hours": f"{overtime_hours:+.2f}"
+        })
+
+    return jsonify({"entries": entries_data})
+
+
+@admin_bp.route("/manual-close-records", methods=["POST"])
+@admin_required
+def manual_close_records():
+    """
+    Ruta manual para cerrar fichajes abiertos de un día específico.
+    Útil como respaldo si el cierre automático falla.
+    """
+    from tasks.scheduler import manual_auto_close_records
+
+    target_date_str = request.form.get("target_date")
+
+    try:
+        if target_date_str:
+            target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+        else:
+            target_date = date.today()
+
+        # Llamar a la función manual (con is_manual=True para usar hora actual)
+        closed_count = manual_auto_close_records(target_date=target_date, is_manual=True)
+
+        if closed_count > 0:
+            flash(f"Se cerraron {closed_count} fichajes abiertos del {target_date.strftime('%d/%m/%Y')}", "success")
+        else:
+            flash(f"No había fichajes abiertos para cerrar del {target_date.strftime('%d/%m/%Y')}", "info")
+
+    except Exception as e:
+        logger.error(f"Error in manual_close_records: {e}")
+        flash(f"Error al cerrar fichajes: {str(e)}", "danger")
+
+    return redirect(url_for("admin.dashboard"))
 
 
 @admin_bp.route("/work_pauses")

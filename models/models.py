@@ -158,6 +158,60 @@ class TimeRecord(db.Model):
     def __repr__(self):
         return f"<TimeRecord {self.id}-U{self.user_id}>"
 
+
+class TimeRecordSignature(db.Model):
+    """
+    Sello de tiempo y firma digital para cada fichaje (check-in/check-out).
+    Cumple con requisitos de la Ley de Fichajes sobre registros infalsificables.
+    """
+    __tablename__ = "time_record_signature"
+
+    id = db.Column(db.Integer, primary_key=True)
+    time_record_id = db.Column(
+        db.Integer,
+        db.ForeignKey("time_record.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    client_id = db.Column(
+        db.Integer,
+        db.ForeignKey("client.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Datos del sello temporal
+    timestamp_utc = db.Column(db.DateTime, nullable=False)  # Hora exacta UTC del servidor
+    action = db.Column(
+        db.Enum("check_in", "check_out", name="signature_action_enum"),
+        nullable=False
+    )
+
+    # Información del terminal/origen
+    terminal_id = db.Column(db.String(100), nullable=False)  # "web_IP" o "mobile_app"
+    user_agent = db.Column(db.Text, nullable=True)  # Navegador/dispositivo
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv4 o IPv6
+
+    # Hash criptográfico del contenido (SHA-256)
+    content_hash = db.Column(db.String(64), nullable=False)  # Hex del SHA-256
+
+    # Firma HMAC del hash (garantiza integridad)
+    signature = db.Column(db.String(64), nullable=False)  # HMAC-SHA256 en hex
+
+    # Versión de la clave (para rotación de claves)
+    key_version = db.Column(db.Integer, default=1, nullable=False)
+
+    # Metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relaciones
+    time_record = db.relationship(
+        "TimeRecord",
+        backref=db.backref("signatures", cascade="all, delete-orphan", lazy=True)
+    )
+
+    def __repr__(self):
+        return f"<TimeRecordSignature {self.id} - TR{self.time_record_id} - {self.action}>"
+
+
 class EmployeeStatus(db.Model):
     __tablename__ = "employee_status"
     __table_args__ = (
@@ -291,6 +345,61 @@ class LeaveRequest(db.Model):
 
     def __repr__(self):
         return f"<LeaveRequest {self.id} - {self.request_type} - {self.status}>"
+
+
+class OvertimeEntry(db.Model):
+    """Modelo para registrar horas extras semanales por empleado"""
+    __tablename__ = "overtime_entry"
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "user_id", "week_start", name="uix_overtime_entry_week"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="CASCADE"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+
+    # Datos de cálculo
+    total_worked_seconds = db.Column(db.Integer, nullable=False)
+    contract_seconds = db.Column(db.Integer, nullable=False)
+    overtime_seconds = db.Column(db.Integer, nullable=False)
+
+    # Estado y auditoría
+    status = db.Column(
+        db.Enum("Pendiente", "Aprobado", "Ajustado", "Rechazado", name="overtime_status_enum"),
+        nullable=False,
+        default="Pendiente"
+    )
+    decided_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+    decision_notes = db.Column(db.Text, nullable=True)
+
+    # Metadatos
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relaciones
+    user_rel = db.relationship(
+        "User",
+        foreign_keys=[user_id],
+        backref=db.backref("overtime_entries", passive_deletes=True),
+        lazy=True
+    )
+    decider_rel = db.relationship("User", foreign_keys=[decided_by], backref="decided_overtimes", lazy=True)
+
+    def __repr__(self):
+        return f"<OvertimeEntry {self.id} - U{self.user_id} W{self.week_start}>"
+
+    @property
+    def kind(self):
+        """Devuelve 'EXTRA', 'DEFICIT' o 'OK' según overtime_seconds"""
+        TOLERANCE = 3600  # ±1 hora
+        if self.overtime_seconds > TOLERANCE:
+            return "EXTRA"
+        elif self.overtime_seconds < -TOLERANCE:
+            return "DEFICIT"
+        return "OK"
 
 
 class SystemConfig(db.Model):

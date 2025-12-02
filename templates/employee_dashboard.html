@@ -36,13 +36,14 @@
           <span class="hidden sm:inline">Imputaciones</span>
         </button>
 
-        <!-- Botón de Notificaciones -->
+        {# Botón de Notificaciones deshabilitado temporalmente
         <button id="notificationBtn" class="px-4 py-2 rounded-full font-semibold transition-all hover:opacity-80 flex items-center gap-2" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 2px solid var(--accent-primary);">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
           <span class="hidden sm:inline">Notificaciones</span>
         </button>
+        #}
 
         <!-- Botón de Cerrar Sesión -->
         <a href="{{ url_for('auth.logout') }}" class="px-6 py-2 rounded-full font-semibold transition-all hover:opacity-80" style="background-color: var(--accent-primary); color: var(--text-inverse);">
@@ -468,6 +469,7 @@
     // === MANEJO DEL MODAL DE PAUSAS ===
     let currentPauseId = null;
     let pauseInterval = null;
+    let isPauseActive = false;
 
     function openPauseModal() {
       document.getElementById('pauseModal').classList.remove('hidden');
@@ -591,6 +593,8 @@
       document.getElementById('pauseStartTime').textContent = pause.start_time;
       document.getElementById('pauseBtn').disabled = true;
       document.getElementById('pauseBtn').style.opacity = '0.5';
+      isPauseActive = true;
+      setCheckOutAvailability(false);
 
       // Actualizar estado en el dashboard
       updateStatusDisplay(pause.pause_type, pause.start_time);
@@ -604,6 +608,8 @@
       document.getElementById('activePause').classList.add('hidden');
       document.getElementById('pauseBtn').disabled = false;
       document.getElementById('pauseBtn').style.opacity = '1';
+      isPauseActive = false;
+      setCheckOutAvailability(true);
 
       // Actualizar estado en el dashboard a "Trabajando"
       updateStatusDisplay(null);
@@ -611,6 +617,21 @@
       if (pauseInterval) {
         clearInterval(pauseInterval);
         pauseInterval = null;
+      }
+    }
+
+    function setCheckOutAvailability(enabled) {
+      const checkOutBtn = document.getElementById('checkOutBtn');
+      if (!checkOutBtn) {
+        return;
+      }
+
+      if (enabled) {
+        checkOutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        checkOutBtn.setAttribute('aria-disabled', 'false');
+      } else {
+        checkOutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        checkOutBtn.setAttribute('aria-disabled', 'true');
       }
     }
 
@@ -715,6 +736,16 @@
         alert('Error al iniciar la pausa');
       }
     });
+
+    const checkOutForm = document.getElementById('checkOutForm');
+    if (checkOutForm) {
+      checkOutForm.addEventListener('submit', (event) => {
+        if (isPauseActive) {
+          event.preventDefault();
+          alert('Debes pulsar en Reanudar Trabajo para finalizar la pausa.');
+        }
+      });
+    }
 
     // Terminar pausa
     async function endPause() {

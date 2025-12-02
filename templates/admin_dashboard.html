@@ -23,6 +23,13 @@
         </svg>
         Fichajes abiertos
       </a>
+      <button onclick="manualCloseRecords()"
+         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        Cerrar todos ahora
+      </button>
       <a href="{{ url_for('admin.leave_requests') }}"
          class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -36,6 +43,13 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         Pausas
+      </a>
+      <a href="{{ url_for('admin.overtime_dashboard') }}"
+         class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Gestión de Horas
       </a>
     </div>
   </div>
@@ -701,6 +715,41 @@
   // Hacer funciones globales
   window.approveRequest = approveRequest;
   window.rejectRequest = rejectRequest;
+
+  // === CIERRE MANUAL DE REGISTROS ===
+
+  // Cerrar todos los registros abiertos manualmente
+  async function manualCloseRecords() {
+    if (!confirm('¿Estás seguro de que deseas cerrar TODOS los registros abiertos de HOY? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/admin/manual-close-records', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`✓ Se han cerrado ${data.closed_count} registro(s) abierto(s)`);
+        // Recargar la página para reflejar los cambios
+        location.reload();
+      } else {
+        alert('Error al cerrar registros: ' + (data.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error al cerrar registros:', error);
+      alert('Error al cerrar los registros');
+    }
+  }
+
+  // Hacer función global
+  window.manualCloseRecords = manualCloseRecords;
 </script>
 
 {% endblock %}

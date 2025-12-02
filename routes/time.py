@@ -31,16 +31,45 @@ def check_in(client_id):
         return redirect(url_for("auth.login"))
     user_id = session["user_id"]
 
-    # BUSCA REGISTRO ABIERTO
+    # BUSCA REGISTRO ABIERTO (de cualquier fecha)
     existing_open = time_records_query(
         user_id=user_id,
         include_open_only=True
     ).order_by(desc(TimeRecord.id)).first()
 
     if existing_open:
-        # Permite al usuario cerrarlo desde aquí
-        flash(f"Tienes un fichaje abierto desde {existing_open.check_in.strftime('%d-%m-%Y %H:%M:%S')}. Debes cerrarlo antes de fichar entrada.", "warning")
-        return redirect(url_for("time.dashboard_employee"))
+        # Si es de un día anterior, cerrarlo automáticamente
+        if existing_open.date < date.today():
+            from datetime import time as dt_time
+            from models.models import WorkPause
+
+            # Cerrar a las 23:59:59 de su fecha
+            auto_close_time = datetime.combine(
+                existing_open.date,
+                dt_time(23, 59, 59)
+            )
+            existing_open.check_out = auto_close_time
+            existing_open.notes = (existing_open.notes or "") + (" - " if existing_open.notes else "") + "Cerrado automáticamente al fichar nuevo día"
+
+            # Cerrar pausas activas del registro antiguo
+            WorkPause.query.filter(
+                WorkPause.time_record_id == existing_open.id,
+                WorkPause.pause_end.is_(None)
+            ).update({
+                WorkPause.pause_end: auto_close_time,
+                WorkPause.notes: db.func.concat(
+                    db.func.coalesce(WorkPause.notes, ""),
+                    " - Cerrado automáticamente"
+                )
+            }, synchronize_session=False)
+
+            db.session.commit()
+            flash(f"Se cerró automáticamente tu fichaje del {existing_open.date.strftime('%d-%m-%Y')}.", "info")
+            # Continuar con el nuevo fichaje (no return aquí)
+        else:
+            # Es del mismo día, no permitir otro fichaje
+            flash(f"Tienes un fichaje abierto desde {existing_open.check_in.strftime('%d-%m-%Y %H:%M:%S')}. Debes cerrarlo antes de fichar entrada.", "warning")
+            return redirect(url_for("time.dashboard_employee"))
 
     try:
         # 1) ¿Tiene hoy un estado NO trabajable?
@@ -63,16 +92,16 @@ def check_in(client_id):
                 text("LOCK TABLE public.time_record IN SHARE ROW EXCLUSIVE MODE")
             )
 
-        # 3) ¿Ya hay un fichaje abierto?
-        existing_open = time_records_query(
+        # 3) ¿Ya hay un fichaje abierto HOY? (los del día anterior ya se cerraron arriba)
+        existing_open_today = time_records_query(
             user_id=user_id,
             include_open_only=True
-        ).order_by(desc(TimeRecord.id)).first()
+        ).filter_by(date=date.today()).order_by(desc(TimeRecord.id)).first()
 
-        if existing_open:
+        if existing_open_today:
             flash(
                 f"Ya tienes un registro abierto desde "
-                f"{existing_open.check_in.strftime('%d-%m-%Y %H:%M:%S')}.",
+                f"{existing_open_today.check_in.strftime('%d-%m-%Y %H:%M:%S')}.",
                 "warning"
             )
         else:
@@ -86,6 +115,36 @@ def check_in(client_id):
                 date=now.date()
             )
             db.session.add(new_rec)
+            db.session.flush()  # Genera el ID del registro
+
+            # --- SELLAR EL FICHAJE (Ley de Fichajes) ---
+            from services.timestamp_service import TimestampService
+            from models.models import TimeRecordSignature
+
+            try:
+                content_hash, signature, timestamp_utc, terminal_id = TimestampService.seal_record(
+                    time_record=new_rec,
+                    action="check_in",
+                    request=request
+                )
+
+                # Crear registro de firma
+                sig = TimeRecordSignature(
+                    time_record_id=new_rec.id,
+                    client_id=client_id,
+                    timestamp_utc=timestamp_utc,
+                    action="check_in",
+                    terminal_id=terminal_id,
+                    user_agent=request.headers.get("User-Agent"),
+                    ip_address=request.remote_addr,
+                    content_hash=content_hash,
+                    signature=signature,
+                    key_version=1
+                )
+                db.session.add(sig)
+            except Exception as e:
+                current_app.logger.error(f"Error al sellar check-in: {str(e)}")
+                # Continuar aunque falle el sellado (no bloquear al usuario)
 
             # --- si no existe EmployeeStatus hoy, crearlo como Trabajado ---
             if not today_status:
@@ -134,6 +193,36 @@ def check_out(client_id):
             now = datetime.now()
             open_record.check_out = now
             open_record.notes = sanitize_text(request.form.get("notes", ""))
+
+            # --- SELLAR EL FICHAJE (Ley de Fichajes) ---
+            from services.timestamp_service import TimestampService
+            from models.models import TimeRecordSignature
+
+            try:
+                content_hash, signature, timestamp_utc, terminal_id = TimestampService.seal_record(
+                    time_record=open_record,
+                    action="check_out",
+                    request=request
+                )
+
+                # Crear registro de firma
+                sig = TimeRecordSignature(
+                    time_record_id=open_record.id,
+                    client_id=client_id,
+                    timestamp_utc=timestamp_utc,
+                    action="check_out",
+                    terminal_id=terminal_id,
+                    user_agent=request.headers.get("User-Agent"),
+                    ip_address=request.remote_addr,
+                    content_hash=content_hash,
+                    signature=signature,
+                    key_version=1
+                )
+                db.session.add(sig)
+            except Exception as e:
+                current_app.logger.error(f"Error al sellar check-out: {str(e)}")
+                # Continuar aunque falle el sellado (no bloquear al usuario)
+
             db.session.commit()
             flash("Salida registrada correctamente.", "success")
         else:
@@ -200,13 +289,18 @@ def dashboard_employee():
         .order_by(desc(TimeRecord.id)) \
         .first()
 
-    # Obtener pausa activa si existe
-    active_pause = (
-        WorkPause.query
-        .filter_by(user_id=user_id, pause_end=None)
-        .order_by(desc(WorkPause.id))
-        .first()
-    )
+    # Obtener pausa activa SOLO del fichaje de hoy (si existe)
+    active_pause = None
+    if today_record:
+        active_pause = (
+            WorkPause.query
+            .filter_by(
+                time_record_id=today_record.id,  # Solo del fichaje actual
+                pause_end=None
+            )
+            .order_by(desc(WorkPause.id))
+            .first()
+        )
 
     return render_template(
         "employee_dashboard.html",

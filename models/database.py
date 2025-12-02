@@ -10,10 +10,12 @@ class TenantAwareQuery(Query):
     TENANT_MODELS = {
         "User",
         "TimeRecord",
+        "TimeRecordSignature",
         "EmployeeStatus",
         "WorkPause",
         "LeaveRequest",
         "SystemConfig",
+        "OvertimeEntry",
     }
 
     def __init__(self, *args, **kwargs):

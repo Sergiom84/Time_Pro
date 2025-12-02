@@ -19,14 +19,15 @@ def auto_close_open_records():
             auto_close_time = datetime.combine(today, dt_time(23, 59, 59))
             
             # Find all open records from today (check_in not null, check_out is null)
-            open_records = TimeRecord.query.filter(
+            # BYPASS tenant filter to process ALL clients (scheduler has no HTTP session)
+            open_records = TimeRecord.query.bypass_tenant_filter().filter(
                 TimeRecord.date == today,
                 TimeRecord.check_in.isnot(None),
                 TimeRecord.check_out.is_(None)
             ).all()
-            
+
             if open_records:
-                current_app.logger.info(f"Auto-closing {len(open_records)} open time records for {today}")
+                current_app.logger.info(f"Auto-closing {len(open_records)} open time records across all clients for {today}")
 
                 # Close all open records and their active pauses
                 for record in open_records:
@@ -35,7 +36,7 @@ def auto_close_open_records():
 
                     # Cerrar también las pausas activas de este registro
                     from models.models import WorkPause
-                    active_pauses = WorkPause.query.filter(
+                    active_pauses = WorkPause.query.bypass_tenant_filter().filter(
                         WorkPause.time_record_id == record.id,
                         WorkPause.pause_end.is_(None)
                     ).all()
@@ -79,7 +80,8 @@ def manual_auto_close_records(target_date=None, is_manual=True):
                 auto_close_time = datetime.combine(target_date, dt_time(23, 59, 59))
 
             # Find all open records from the target date
-            open_records = TimeRecord.query.filter(
+            # BYPASS tenant filter to process ALL clients
+            open_records = TimeRecord.query.bypass_tenant_filter().filter(
                 TimeRecord.date == target_date,
                 TimeRecord.check_in.isnot(None),
                 TimeRecord.check_out.is_(None)
@@ -87,7 +89,7 @@ def manual_auto_close_records(target_date=None, is_manual=True):
 
             if open_records:
                 close_type = "Manual" if is_manual else "Automático"
-                current_app.logger.info(f"{close_type} auto-closing {len(open_records)} open time records for {target_date}")
+                current_app.logger.info(f"{close_type} auto-closing {len(open_records)} open time records across all clients for {target_date}")
 
                 # Close all open records and their active pauses
                 for record in open_records:
@@ -97,7 +99,7 @@ def manual_auto_close_records(target_date=None, is_manual=True):
 
                     # Cerrar también las pausas activas de este registro
                     from models.models import WorkPause
-                    active_pauses = WorkPause.query.filter(
+                    active_pauses = WorkPause.query.bypass_tenant_filter().filter(
                         WorkPause.time_record_id == record.id,
                         WorkPause.pause_end.is_(None)
                     ).all()

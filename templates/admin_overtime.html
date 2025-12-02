@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Horas Extras{% endblock %}
+{% block header %}<span style="color: var(--accent-primary);">Gestión de Horas Extras</span>{% endblock %}
+
+{% block content %}
+<!-- Controles principales -->
+<section class="bg-gray-800 shadow-md rounded-lg p-6 mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+    <!-- Navegación por semanas -->
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('admin.overtime_dashboard', week=prev_week, tab=tab) }}"
+         class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-all">
+        ← Semana anterior
+      </a>
+      <span class="px-6 py-2 text-base font-semibold rounded text-white" style="background-color: var(--accent-primary);">
+        {{ week_start.strftime('%d/%m/%Y') }} - {{ week_end.strftime('%d/%m/%Y') }}
+      </span>
+      <a href="{{ url_for('admin.overtime_dashboard', week=next_week, tab=tab) }}"
+         class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-all">
+        Semana siguiente →
+      </a>
+    </div>
+
+    <!-- Selector de semana manual -->
+    <form method="GET" action="{{ url_for('admin.overtime_dashboard') }}" class="flex items-center gap-2">
+      <input type="week"
+             name="week"
+             value="{{ selected_week }}"
+             class="px-3 py-2 rounded bg-gray-900 text-gray-200 border border-gray-700">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <button type="submit" class="px-4 py-2 text-white rounded transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
+        Ir a semana
+      </button>
+    </form>
+  </div>
+
+  <!-- Tabs: Pendientes / Histórico -->
+  <div class="flex gap-2 border-b border-gray-700">
+    <a href="{{ url_for('admin.overtime_dashboard', week=selected_week, tab='pending') }}"
+       class="px-6 py-3 font-semibold {% if tab == 'pending' %}border-b-2 text-white{% else %}text-gray-400 hover:text-white{% endif %}"
+       style="{% if tab == 'pending' %}border-color: var(--accent-primary);{% endif %}">
+      Pendientes
+    </a>
+    <a href="{{ url_for('admin.overtime_dashboard', week=selected_week, tab='extras') }}"
+       class="px-6 py-3 font-semibold {% if tab == 'extras' %}border-b-2 text-white{% else %}text-gray-400 hover:text-white{% endif %}"
+       style="{% if tab == 'extras' %}border-color: var(--accent-primary);{% endif %}">
+      Extras
+    </a>
+    <a href="{{ url_for('admin.overtime_dashboard', week=selected_week, tab='history') }}"
+       class="px-6 py-3 font-semibold {% if tab == 'history' %}border-b-2 text-white{% else %}text-gray-400 hover:text-white{% endif %}"
+       style="{% if tab == 'history' %}border-color: var(--accent-primary);{% endif %}">
+      Histórico
+    </a>
+  </div>
+</section>
+
+<!-- Tabla de horas extras -->
+<section class="bg-gray-800 shadow-md rounded-lg p-6">
+  {% if entries %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full leading-normal text-sm">
+        <thead class="bg-gray-900 text-left text-gray-400 uppercase text-xs">
+          <tr>
+            <th class="px-3 py-3 border-b border-gray-700">Empleado</th>
+            <th class="px-3 py-3 border-b border-gray-700">Centro</th>
+            <th class="px-3 py-3 border-b border-gray-700">Categoría</th>
+            <th class="px-3 py-3 border-b border-gray-700">Jornada Semanal</th>
+            <th class="px-3 py-3 border-b border-gray-700">Horas Trabajadas</th>
+            <th class="px-3 py-3 border-b border-gray-700">Diferencia</th>
+            <th class="px-3 py-3 border-b border-gray-700">Estado</th>
+            <th class="px-3 py-3 border-b border-gray-700 text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-200">
+          {% for item in entries %}
+            <tr class="border-b border-gray-700 hover:bg-gray-700 transition-all">
+              <td class="px-3 py-3 whitespace-nowrap">
+                <div class="font-medium">{{ item.user.full_name }}</div>
+                <div class="text-xs text-gray-400">{{ item.user.username }}</div>
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">{{ item.center }}</td>
+              <td class="px-3 py-3 whitespace-nowrap">{{ item.category }}</td>
+              <td class="px-3 py-3 whitespace-nowrap text-center">{{ item.contract_hours }}h</td>
+              <td class="px-3 py-3 whitespace-nowrap text-center">{{ item.worked_hours }}h</td>
+              <td class="px-3 py-3 whitespace-nowrap text-center">
+                {% if item.is_overtime %}
+                  <span class="text-red-500 font-bold">● {{ item.overtime_hours }}h</span>
+                {% elif item.is_deficit %}
+                  <span class="text-amber-500 font-bold">● {{ item.overtime_hours }}h</span>
+                {% else %}
+                  <span class="text-green-500">✓ OK</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs rounded-full font-semibold"
+                      style="background-color:
+                        {% if item.entry.status == 'Pendiente' %}#EF4444
+                        {% elif item.entry.status == 'Aprobado' %}#10B981
+                        {% elif item.entry.status == 'Ajustado' %}#3B82F6
+                        {% else %}#6B7280{% endif %}; color: white;">
+                  {{ item.entry.status }}
+                </span>
+              </td>
+              <td class="px-3 py-3 text-center">
+                {% if item.entry.status == 'Pendiente' %}
+                  <div class="flex gap-1 justify-center">
+                    <!-- Ver detalle -->
+                    <a href="{{ url_for('admin.manage_records', user=item.user.username, start_date=item.entry.week_start.isoformat(), end_date=item.entry.week_end.isoformat()) }}"
+                       class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                       title="Ver registros de la semana">
+                      Ver
+                    </a>
+
+                    <!-- Ajustar -->
+                    <button onclick="showAdjustModal({{ item.entry.id }}, '{{ item.user.full_name }}')"
+                            class="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded"
+                            title="Ajustar horas">
+                      Ajustar
+                    </button>
+
+                    <!-- Aprobar -->
+                    <form method="POST" action="{{ url_for('admin.overtime_approve', entry_id=item.entry.id) }}" class="inline">
+                      <button type="submit"
+                              class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded"
+                              title="Aprobar horas extras">
+                        Aprobar
+                      </button>
+                    </form>
+                  </div>
+                {% else %}
+                  <span class="text-gray-500 text-xs">
+                    {{ item.entry.decided_at.strftime('%d/%m/%Y') if item.entry.decided_at else '-' }}
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="text-center py-12 text-gray-400">
+      <p class="text-lg">No hay registros de horas extras {% if tab == 'pending' %}pendientes{% else %}en el histórico{% endif %} para esta semana.</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- Modal de ajuste de horas -->
+<div id="adjustModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+    <h3 class="text-xl font-bold text-white mb-4">Ajustar Horas de <span id="adjustUserName"></span></h3>
+
+    <form id="adjustForm" method="POST">
+      <p class="text-gray-300 mb-4">Selecciona el método de ajuste:</p>
+
+      <div class="space-y-3">
+        <label class="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-700 transition-all">
+          <input type="radio" name="mode" value="auto" checked class="mt-1">
+          <div>
+            <div class="font-semibold text-white">Ajuste Automático</div>
+            <div class="text-sm text-gray-400">La aplicación modificará el último registro para cuadrar la semana</div>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-700 transition-all">
+          <input type="radio" name="mode" value="manual">
+          <div>
+            <div class="font-semibold text-white">Ajuste Manual</div>
+            <div class="text-sm text-gray-400">Ir a Gestionar Registros para editar manualmente</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="flex gap-2 mt-6">
+        <button type="submit" class="flex-1 px-4 py-2 text-white rounded transition-all hover:opacity-90" style="background-color: var(--accent-primary);">
+          Continuar
+        </button>
+        <button type="button" onclick="closeAdjustModal()" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showAdjustModal(entryId, userName) {
+  document.getElementById('adjustUserName').textContent = userName;
+  document.getElementById('adjustForm').action = "{{ url_for('admin.overtime_adjust', entry_id=0) }}".replace('/0', '/' + entryId);
+  document.getElementById('adjustModal').classList.remove('hidden');
+}
+
+function closeAdjustModal() {
+  document.getElementById('adjustModal').classList.add('hidden');
+}
+
+// Cerrar modal con ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAdjustModal();
+});
+</script>
+{% endblock %}

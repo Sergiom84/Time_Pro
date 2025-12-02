@@ -1,7 +1,12 @@
 {# check_in_out_form.html #}
 {% if today_record %}
   <!-- Formulario de fichar salida -->
-  <form action="{{ url_for('time.check_out') }}" method="POST" class="mt-8 space-y-4">
+  <form
+    id="checkOutForm"
+    action="{{ url_for('time.check_out') }}"
+    method="POST"
+    class="mt-8 space-y-4"
+  >
     <div>
       <label for="notes" class="block text-sm font-semibold mb-2" style="color: var(--text-primary);">
         Notas (opcional)
@@ -31,6 +36,7 @@
 
       <!-- Botón de fichar salida -->
       <button
+        id="checkOutBtn"
         type="submit"
         class="flex-1 inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-full text-white transition-all hover:opacity-90 active:transform active:scale-95"
         style="background-color: #EA580C;"
