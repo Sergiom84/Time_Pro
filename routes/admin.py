@@ -3,7 +3,7 @@ from flask import (
     url_for, flash, session, jsonify, abort
 )
 from functools import wraps
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from models.models import User, TimeRecord, EmployeeStatus, SystemConfig, LeaveRequest, WorkPause, Category, Center, OvertimeEntry
 from services.category_service import CategoryService
 from services.exceptions import ResourceNotFound, ResourceAlreadyExists, ValidationError, OperationNotAllowed
@@ -1981,8 +1981,12 @@ def get_pending_overtime_count():
     """API para obtener el contador de horas extras pendientes (para campanita)"""
     client_id = session.get("client_id")
     centro_admin = get_admin_centro()
+    current_date = datetime.now(timezone.utc).date()
 
-    query = OvertimeEntry.query.filter_by(status="Pendiente")
+    query = OvertimeEntry.query.filter(
+        OvertimeEntry.status == "Pendiente",
+        OvertimeEntry.week_end < current_date  # Solo semanas completadas
+    )
 
     if centro_admin:
         query = query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro_admin)
@@ -1998,11 +2002,15 @@ def get_pending_overtime_details():
     """API para obtener detalles de horas extras pendientes (para modal de campanita)"""
     client_id = session.get("client_id")
     centro_admin = get_admin_centro()
+    current_date = datetime.now(timezone.utc).date()
 
     query = (
         OvertimeEntry.query
         .join(User, OvertimeEntry.user_id == User.id)
-        .filter(OvertimeEntry.status == "Pendiente")
+        .filter(
+            OvertimeEntry.status == "Pendiente",
+            OvertimeEntry.week_end < current_date  # Solo semanas completadas
+        )
     )
 
     if centro_admin:
@@ -2023,6 +2031,71 @@ def get_pending_overtime_details():
         })
 
     return jsonify({"entries": entries_data})
+
+
+@admin_bp.route("/notifications/processed-overtime")
+@admin_required
+def get_processed_overtime_count():
+    """
+    API para obtener el contador de horas extras ya procesadas (aprobadas, ajustadas o rechazadas)
+    para semanas completadas - usado en la pestaña "Extras" del modal de campanita.
+    """
+    client_id = session.get("client_id")
+    centro_admin = get_admin_centro()
+    current_date = datetime.now(timezone.utc).date()
+
+    query = OvertimeEntry.query.filter(
+        OvertimeEntry.status.in_(["Aprobado", "Ajustado", "Rechazado"]),
+        OvertimeEntry.week_end < current_date
+    )
+
+    if centro_admin:
+        query = query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro_admin)
+
+    count = query.count()
+
+    return jsonify({"count": count})
+
+
+@admin_bp.route("/notifications/processed-overtime-details")
+@admin_required
+def get_processed_overtime_details():
+    """
+    API para obtener detalles de hasta 5 entradas de horas extras procesadas más recientes
+    (aprobadas, ajustadas o rechazadas) para semanas completadas.
+    """
+    client_id = session.get("client_id")
+    centro_admin = get_admin_centro()
+    current_date = datetime.now(timezone.utc).date()
+
+    query = (
+        OvertimeEntry.query
+        .join(User, OvertimeEntry.user_id == User.id)
+        .filter(
+            OvertimeEntry.status.in_(["Aprobado", "Ajustado", "Rechazado"]),
+            OvertimeEntry.week_end < current_date
+        )
+    )
+
+    if centro_admin:
+        query = query.filter(User.center_id == centro_admin)
+
+    entries = query.order_by(OvertimeEntry.updated_at.desc()).limit(5).all()
+
+    entries_data = []
+    for entry in entries:
+        overtime_hours = entry.overtime_seconds / 3600
+        entries_data.append({
+            "id": entry.id,
+            "user_name": entry.user_rel.full_name,
+            "week_start": entry.week_start.strftime("%d/%m/%Y"),
+            "week_end": entry.week_end.strftime("%d/%m/%Y"),
+            "overtime_hours": round(overtime_hours, 2),
+            "status": entry.status,
+            "updated_at": entry.updated_at.strftime("%d/%m/%Y %H:%M") if entry.updated_at else None
+        })
+
+    return jsonify({"success": True, "entries": entries_data})
 
 
 @admin_bp.route("/manual-close-records", methods=["POST"])
