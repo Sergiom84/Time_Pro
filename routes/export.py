@@ -1165,7 +1165,7 @@ def export_excel_monthly():
         if 'Pausas' in status_filters and records:
             pause_seconds_by_record, pause_details = calculate_pause_data_for_records(records)
 
-        # Generar Excel con 3 pestañas
+        # Generar Excel con pestañas condicionales (hasta 5 pestañas)
         wb = openpyxl.Workbook()
 
         # ===== PESTAÑA 1: REGISTROS DE FICHAJE (con sumas semanales) =====
@@ -1428,7 +1428,43 @@ def export_excel_monthly():
                 col_letter = get_column_letter(col_num)
                 ws2.column_dimensions[col_letter].width = 17
 
-        # ===== PESTAÑA 3: RESUMEN CONSOLIDADO =====
+        # ===== PESTAÑA 3: DETALLE DE PAUSAS (condicional) =====
+        if pause_details:
+            ws_pausas = wb.create_sheet("Detalle de Pausas")
+            header_pausas = [
+                "Usuario", "Nombre completo", "Categoría", "Centro", "Fecha",
+                "Hora Inicio Pausa", "Hora Fin Pausa", "Tipo de Pausa",
+                "Duración", "Notas"
+            ]
+
+            for col_num, header_text in enumerate(header_pausas, 1):
+                cell = ws_pausas.cell(row=1, column=col_num)
+                cell.value = header_text
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center')
+                cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+            row_num = 2
+            for detail in pause_details:
+                user = detail["user"]
+                pause = detail["pause"]
+                ws_pausas.cell(row=row_num, column=1).value = user.username if user else f"ID: {pause.user_id}"
+                ws_pausas.cell(row=row_num, column=2).value = user.full_name if user else "-"
+                ws_pausas.cell(row=row_num, column=3).value = get_user_category_label(user)
+                ws_pausas.cell(row=row_num, column=4).value = user.center.name if user and user.center else "-"
+                ws_pausas.cell(row=row_num, column=5).value = detail["date"].strftime("%d/%m/%Y")
+                ws_pausas.cell(row=row_num, column=6).value = pause.pause_start.strftime("%H:%M:%S")
+                ws_pausas.cell(row=row_num, column=7).value = pause.pause_end.strftime("%H:%M:%S")
+                ws_pausas.cell(row=row_num, column=8).value = pause.pause_type
+                ws_pausas.cell(row=row_num, column=9).value = format_duration_from_seconds(detail["duration_seconds"])
+                ws_pausas.cell(row=row_num, column=10).value = detail["notes"]
+                row_num += 1
+
+            for col_num, _ in enumerate(header_pausas, 1):
+                col_letter = get_column_letter(col_num)
+                ws_pausas.column_dimensions[col_letter].width = 18
+
+        # ===== PESTAÑA 4: RESUMEN CONSOLIDADO =====
         ws3 = wb.create_sheet("Resumen Consolidado")
         header3 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Estado", "Entrada", "Salida", "Horas", "Notas", "Notas Admin"]
         for col_num, header_text in enumerate(header3, 1):
@@ -1500,15 +1536,17 @@ def export_excel_monthly():
             col_letter = get_column_letter(col_num)
             ws3.column_dimensions[col_letter].width = 17
 
-        # ========== PESTAÑA 4: HORAS EXTRAS ==========
-        # Filtrar horas extras del mes seleccionado
-        overtime_entries = OvertimeEntry.query.filter(
-            db.or_(
-                db.and_(OvertimeEntry.week_start >= start_date, OvertimeEntry.week_start <= end_date),
-                db.and_(OvertimeEntry.week_end >= start_date, OvertimeEntry.week_end <= end_date)
-            )
-        ).all()
-        add_overtime_sheet_to_workbook(wb, overtime_entries)
+        # ========== PESTAÑA 5: HORAS EXTRAS (condicional) ==========
+        # Añadir pestaña de horas extras SOLO si el filtro está activo
+        if 'Horas Extras' in status_filters:
+            # Filtrar horas extras del mes seleccionado
+            overtime_entries = OvertimeEntry.query.filter(
+                db.or_(
+                    db.and_(OvertimeEntry.week_start >= start_date, OvertimeEntry.week_start <= end_date),
+                    db.and_(OvertimeEntry.week_end >= start_date, OvertimeEntry.week_end <= end_date)
+                )
+            ).all()
+            add_overtime_sheet_to_workbook(wb, overtime_entries)
 
         fd, temp_path = tempfile.mkstemp(suffix='.xlsx')
         os.close(fd)
