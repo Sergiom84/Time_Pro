@@ -453,7 +453,10 @@ def handle_daily_pdf_export(req):
         flash("No hay registros para ese día con los filtros seleccionados.", "warning")
         return redirect(url_for("export.export_excel"))
 
-    pause_seconds_by_record, _ = calculate_pause_data_for_records(time_records)
+    # Calcular pausas SOLO si el filtro está activo
+    pause_seconds_by_record = {}
+    if 'Pausas' in status_filters and time_records:
+        pause_seconds_by_record, _ = calculate_pause_data_for_records(time_records)
 
     # Crear PDF
     pdf = FPDF(orientation="L", unit="mm", format="A4")
@@ -468,8 +471,14 @@ def handle_daily_pdf_export(req):
         pdf.cell(0, 8, "Registros de Fichaje", ln=1)
 
         pdf.set_font("Arial", "B", 9)
-        header = ["Usuario", "Nombre", "Categoria", "Centro", "Entrada", "Salida", "Horas Totales", "Tiempo Pausa", "Horas Efectivas", "Notas", "Notas Admin"]
-        col_widths = [20, 28, 22, 25, 18, 18, 22, 22, 22, 35, 35]
+
+        # Headers condicionales según filtro de Pausas
+        if 'Pausas' in status_filters:
+            header = ["Usuario", "Nombre", "Categoria", "Centro", "Entrada", "Salida", "Horas Totales", "Tiempo Pausa", "Horas Efectivas", "Notas", "Notas Admin"]
+            col_widths = [20, 28, 22, 25, 18, 18, 22, 22, 22, 35, 35]
+        else:
+            header = ["Usuario", "Nombre", "Categoria", "Centro", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Notas Admin"]
+            col_widths = [25, 35, 28, 30, 20, 20, 28, 50, 50]
 
         for i, col_name in enumerate(header):
             pdf.cell(col_widths[i], 7, col_name, border=1, align="C")
@@ -481,22 +490,33 @@ def handle_daily_pdf_export(req):
             total_seconds = None
             if record.check_in and record.check_out:
                 total_seconds = int((record.check_out - record.check_in).total_seconds())
-            pause_seconds = pause_seconds_by_record.get(record.id, 0)
+
+            # Pausas solo si filtro activo
+            pause_seconds = pause_seconds_by_record.get(record.id, 0) if 'Pausas' in status_filters else 0
             effective_seconds = None
-            if total_seconds is not None:
+            if 'Pausas' in status_filters and total_seconds is not None:
                 effective_seconds = max(total_seconds - pause_seconds, 0)
 
+            # Columnas comunes
             pdf.cell(col_widths[0], 6, user.username if user else f"ID:{record.user_id}", border=1)
             pdf.cell(col_widths[1], 6, (user.full_name if user else "-")[:20], border=1)
             pdf.cell(col_widths[2], 6, get_user_category_label(user), border=1)
             pdf.cell(col_widths[3], 6, (user.center.name if user and user.center else "-")[:15], border=1)
             pdf.cell(col_widths[4], 6, record.check_in.strftime("%H:%M") if record.check_in else "-", border=1, align="C")
             pdf.cell(col_widths[5], 6, record.check_out.strftime("%H:%M") if record.check_out else "-", border=1, align="C")
-            pdf.cell(col_widths[6], 6, format_duration_from_seconds(total_seconds), border=1, align="C")
-            pdf.cell(col_widths[7], 6, format_duration_from_seconds(pause_seconds), border=1, align="C")
-            pdf.cell(col_widths[8], 6, format_duration_from_seconds(effective_seconds), border=1, align="C")
-            pdf.cell(col_widths[9], 6, (record.notes or "")[:20], border=1)
-            pdf.cell(col_widths[10], 6, (record.admin_notes or "")[:20], border=1)
+
+            # Columnas condicionales
+            if 'Pausas' in status_filters:
+                pdf.cell(col_widths[6], 6, format_duration_from_seconds(total_seconds), border=1, align="C")
+                pdf.cell(col_widths[7], 6, format_duration_from_seconds(pause_seconds), border=1, align="C")
+                pdf.cell(col_widths[8], 6, format_duration_from_seconds(effective_seconds), border=1, align="C")
+                pdf.cell(col_widths[9], 6, (record.notes or "")[:20], border=1)
+                pdf.cell(col_widths[10], 6, (record.admin_notes or "")[:20], border=1)
+            else:
+                pdf.cell(col_widths[6], 6, format_duration_from_seconds(total_seconds), border=1, align="C")
+                pdf.cell(col_widths[7], 6, (record.notes or "")[:30], border=1)
+                pdf.cell(col_widths[8], 6, (record.admin_notes or "")[:30], border=1)
+
             pdf.ln()
 
     # Sección 2: Bajas y Ausencias (si hay)
@@ -1103,9 +1123,6 @@ def export_excel_monthly():
         if 'Pausas' in status_filters and records:
             pause_seconds_by_record, pause_details = calculate_pause_data_for_records(records)
 
-        # TODO: Adaptar headers y columnas del tab "Registros de Fichaje" según filtro de Pausas
-        # (similar a export_excel, pero considerando la lógica de sumas semanales)
-
         # Generar Excel con 3 pestañas
         wb = openpyxl.Workbook()
 
@@ -1130,7 +1147,12 @@ def export_excel_monthly():
                     hours = time_diff.total_seconds() / 3600
                     weekly_totals[record.user_id][week_start] += hours
 
-            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Horas Semanales", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Diferencia Horas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+            # Header condicional según filtro de Pausas
+            if 'Pausas' in status_filters:
+                header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Horas Semanales", "Fecha", "Entrada", "Salida", "Horas Totales", "Tiempo de Pausa", "Horas Efectivas", "Diferencia Horas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+            else:
+                header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Horas Semanales", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Diferencia Horas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+
             for col_num, header_text in enumerate(header1, 1):
                 cell = ws1.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -1146,6 +1168,13 @@ def export_excel_monthly():
                 for week_start in sorted(weekly_data[user_id].keys()):
                     week_end = week_start + timedelta(days=6)
                     total_hours = weekly_totals[user_id][week_start]
+
+                    # Calcular total de pausas de la semana si filtro activo
+                    total_pause_hours = 0
+                    if 'Pausas' in status_filters:
+                        for record in weekly_data[user_id][week_start]:
+                            pause_seconds = pause_seconds_by_record.get(record.id, 0)
+                            total_pause_hours += pause_seconds / 3600
 
                     # Fila de total semanal
                     cell = ws1.cell(row=row_num, column=1)
@@ -1181,38 +1210,77 @@ def export_excel_monthly():
                         cell.alignment = Alignment(horizontal='center')
                         cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
 
+                    # Columna 9: Horas totales trabajadas
                     cell = ws1.cell(row=row_num, column=9)
                     cell.value = f"{total_hours:.2f}"
                     cell.font = Font(bold=True)
                     cell.alignment = Alignment(horizontal='center')
                     cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
 
-                    # Calcular diferencia
-                    weekly_hours_contract = user.weekly_hours if user and user.weekly_hours else 0
-                    difference = weekly_hours_contract - total_hours
-                    cell = ws1.cell(row=row_num, column=10)
-                    cell.value = f"{difference:.2f}"
-                    cell.font = Font(bold=True)
-                    cell.alignment = Alignment(horizontal='center')
-                    cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
-
-                    for col in range(11, 15):
-                        cell = ws1.cell(row=row_num, column=col)
-                        cell.value = "-"
+                    # Columnas condicionales según filtro de Pausas
+                    if 'Pausas' in status_filters:
+                        # Columna 10: Tiempo de pausa
+                        cell = ws1.cell(row=row_num, column=10)
+                        cell.value = f"{total_pause_hours:.2f}"
+                        cell.font = Font(bold=True)
                         cell.alignment = Alignment(horizontal='center')
                         cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+
+                        # Columna 11: Horas efectivas
+                        effective_hours = total_hours - total_pause_hours
+                        cell = ws1.cell(row=row_num, column=11)
+                        cell.value = f"{effective_hours:.2f}"
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                        cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+
+                        # Columna 12: Diferencia
+                        weekly_hours_contract = user.weekly_hours if user and user.weekly_hours else 0
+                        difference = weekly_hours_contract - total_hours
+                        cell = ws1.cell(row=row_num, column=12)
+                        cell.value = f"{difference:.2f}"
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                        cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+
+                        # Columnas 13, 14, 15, 16: "-"
+                        for col in range(13, 17):
+                            cell = ws1.cell(row=row_num, column=col)
+                            cell.value = "-"
+                            cell.alignment = Alignment(horizontal='center')
+                            cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+                    else:
+                        # Columna 10: Diferencia (sin pausas)
+                        weekly_hours_contract = user.weekly_hours if user and user.weekly_hours else 0
+                        difference = weekly_hours_contract - total_hours
+                        cell = ws1.cell(row=row_num, column=10)
+                        cell.value = f"{difference:.2f}"
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                        cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+
+                        # Columnas 11, 12, 13, 14: "-"
+                        for col in range(11, 15):
+                            cell = ws1.cell(row=row_num, column=col)
+                            cell.value = "-"
+                            cell.alignment = Alignment(horizontal='center')
+                            cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
 
                     row_num += 1
 
                     # Registros individuales
                     for record in weekly_data[user_id][week_start]:
                         modified_by = User.query.get(record.modified_by) if record.modified_by else None
-                        hours_worked = ""
+                        total_seconds = 0
                         if record.check_in and record.check_out:
                             time_diff = record.check_out - record.check_in
-                            hours = time_diff.total_seconds() / 3600
-                            hours_worked = f"{hours:.2f}"
+                            total_seconds = time_diff.total_seconds()
 
+                        # Calcular pausas si filtro activo
+                        pause_seconds = pause_seconds_by_record.get(record.id, 0) if 'Pausas' in status_filters else 0
+                        effective_seconds = max(total_seconds - pause_seconds, 0) if 'Pausas' in status_filters else 0
+
+                        # Escribir columnas comunes (1-8)
                         ws1.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
                         ws1.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
 
@@ -1237,23 +1305,49 @@ def export_excel_monthly():
                         ws1.cell(row=row_num, column=8).value = record.check_out.strftime("%H:%M:%S") if record.check_out else "-"
                         ws1.cell(row=row_num, column=8).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=9).value = hours_worked
-                        ws1.cell(row=row_num, column=9).alignment = Alignment(horizontal='center')
+                        # Columnas condicionales según filtro de Pausas
+                        if 'Pausas' in status_filters:
+                            ws1.cell(row=row_num, column=9).value = f"{total_seconds / 3600:.2f}" if total_seconds else "-"
+                            ws1.cell(row=row_num, column=9).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=10).value = "-"
-                        ws1.cell(row=row_num, column=10).alignment = Alignment(horizontal='center')
+                            ws1.cell(row=row_num, column=10).value = f"{pause_seconds / 3600:.2f}" if pause_seconds else "0.00"
+                            ws1.cell(row=row_num, column=10).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=11).value = record.notes
-                        ws1.cell(row=row_num, column=11).alignment = Alignment(horizontal='center')
+                            ws1.cell(row=row_num, column=11).value = f"{effective_seconds / 3600:.2f}" if effective_seconds else "-"
+                            ws1.cell(row=row_num, column=11).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=12).value = record.admin_notes
-                        ws1.cell(row=row_num, column=12).alignment = Alignment(horizontal='center')
+                            ws1.cell(row=row_num, column=12).value = "-"
+                            ws1.cell(row=row_num, column=12).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=13).value = modified_by.username if modified_by else "-"
-                        ws1.cell(row=row_num, column=13).alignment = Alignment(horizontal='center')
+                            ws1.cell(row=row_num, column=13).value = record.notes
+                            ws1.cell(row=row_num, column=13).alignment = Alignment(horizontal='center')
 
-                        ws1.cell(row=row_num, column=14).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
-                        ws1.cell(row=row_num, column=14).alignment = Alignment(horizontal='center')
+                            ws1.cell(row=row_num, column=14).value = record.admin_notes
+                            ws1.cell(row=row_num, column=14).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=15).value = modified_by.username if modified_by else "-"
+                            ws1.cell(row=row_num, column=15).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=16).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                            ws1.cell(row=row_num, column=16).alignment = Alignment(horizontal='center')
+                        else:
+                            ws1.cell(row=row_num, column=9).value = f"{total_seconds / 3600:.2f}" if total_seconds else "-"
+                            ws1.cell(row=row_num, column=9).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=10).value = "-"
+                            ws1.cell(row=row_num, column=10).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=11).value = record.notes
+                            ws1.cell(row=row_num, column=11).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=12).value = record.admin_notes
+                            ws1.cell(row=row_num, column=12).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=13).value = modified_by.username if modified_by else "-"
+                            ws1.cell(row=row_num, column=13).alignment = Alignment(horizontal='center')
+
+                            ws1.cell(row=row_num, column=14).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                            ws1.cell(row=row_num, column=14).alignment = Alignment(horizontal='center')
                         row_num += 1
 
                     row_num += 1
