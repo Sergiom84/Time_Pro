@@ -209,7 +209,7 @@ def handle_daily_excel_export(req):
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
-    selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
+    selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
@@ -443,7 +443,7 @@ def handle_daily_pdf_export(req):
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
     employee_statuses = []
-    selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
+    selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
@@ -727,7 +727,7 @@ def export_excel():
 
         # ========== OBTENER REGISTROS DE EMPLOYEESTATUS (Baja, Ausente, Vacaciones) ==========
         employee_statuses = []
-        selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
+        selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
         if selected_statuses:
             status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
                 EmployeeStatus.status.in_(selected_statuses),
@@ -1129,7 +1129,7 @@ def export_excel_monthly():
 
         # Consultar EmployeeStatus si otros estados están seleccionados
         employee_statuses = []
-        selected_statuses = expand_status_filters([s for s in status_filters if s != 'Trabajado'])
+        selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
         if selected_statuses:
             status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
                 EmployeeStatus.status.in_(selected_statuses),
