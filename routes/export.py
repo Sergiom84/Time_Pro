@@ -383,15 +383,16 @@ def handle_daily_excel_export(req):
             col_letter = get_column_letter(col_num)
             ws3.column_dimensions[col_letter].width = 18
 
-    # ========== PESTAÑA 4: HORAS EXTRAS ==========
-    # Obtener horas extras de la misma fecha
-    overtime_entries = OvertimeEntry.query.filter(
-        db.or_(
-            db.and_(OvertimeEntry.week_start <= fecha, OvertimeEntry.week_end >= fecha),
-            OvertimeEntry.week_start == fecha
-        )
-    ).all()
-    add_overtime_sheet_to_workbook(wb, overtime_entries)
+    # ========== PESTAÑA 4: HORAS EXTRAS (condicional) ==========
+    # Obtener horas extras SOLO si el filtro está activo
+    if 'Horas Extras' in status_filters:
+        overtime_entries = OvertimeEntry.query.filter(
+            db.or_(
+                db.and_(OvertimeEntry.week_start <= fecha, OvertimeEntry.week_end >= fecha),
+                OvertimeEntry.week_start == fecha
+            )
+        ).all()
+        add_overtime_sheet_to_workbook(wb, overtime_entries)
 
     fd, temp_path = tempfile.mkstemp(suffix='.xlsx')
     os.close(fd)
@@ -545,6 +546,45 @@ def handle_daily_pdf_export(req):
             pdf.cell(col_widths2[5], 6, (status_record.notes or "")[:35], border=1)
             pdf.cell(col_widths2[6], 6, (status_record.admin_notes or "")[:35], border=1)
             pdf.ln()
+
+    # Sección 3: Horas Extras (condicional)
+    if 'Horas Extras' in status_filters:
+        # Obtener horas extras de la misma fecha
+        overtime_entries = OvertimeEntry.query.filter(
+            db.or_(
+                db.and_(OvertimeEntry.week_start <= fecha, OvertimeEntry.week_end >= fecha),
+                OvertimeEntry.week_start == fecha
+            )
+        ).all()
+
+        if overtime_entries:
+            pdf.ln(8)
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(0, 8, "Horas Extras", ln=1)
+
+            pdf.set_font("Arial", "B", 9)
+            header3 = ["Usuario", "Nombre", "Semana", "Jornada", "Trabajadas", "Extra/Deficit", "Estado"]
+            col_widths3 = [28, 42, 35, 24, 24, 28, 26]
+
+            for i, col_name in enumerate(header3):
+                pdf.cell(col_widths3[i], 7, col_name, border=1, align="C")
+            pdf.ln()
+
+            pdf.set_font("Arial", "", 8)
+            for entry in overtime_entries:
+                user = entry.user_rel
+                worked_hours = entry.total_worked_seconds / 3600
+                contract_hours = entry.contract_seconds / 3600
+                overtime_hours = entry.overtime_seconds / 3600
+
+                pdf.cell(col_widths3[0], 6, user.username if user else f"ID:{entry.user_id}", border=1)
+                pdf.cell(col_widths3[1], 6, (user.full_name if user else "-")[:25], border=1)
+                pdf.cell(col_widths3[2], 6, f"{entry.week_start.strftime('%d/%m')}-{entry.week_end.strftime('%d/%m')}", border=1, align="C")
+                pdf.cell(col_widths3[3], 6, f"{contract_hours:.2f}h", border=1, align="C")
+                pdf.cell(col_widths3[4], 6, f"{worked_hours:.2f}h", border=1, align="C")
+                pdf.cell(col_widths3[5], 6, f"{overtime_hours:+.2f}h", border=1, align="C")
+                pdf.cell(col_widths3[6], 6, entry.status[:12], border=1, align="C")
+                pdf.ln()
 
     # Guardar PDF
     fd, temp_path = tempfile.mkstemp(suffix='.pdf')
@@ -943,28 +983,30 @@ def export_excel():
             col_letter = get_column_letter(col_num)
             ws3.column_dimensions[col_letter].width = 17
 
-        # ========== PESTAÑA 4: HORAS EXTRAS ==========
-        # Filtrar horas extras por rango de fechas
-        overtime_query = OvertimeEntry.query.filter(
-            db.or_(
-                db.and_(OvertimeEntry.week_start <= end_date, OvertimeEntry.week_end >= start_date),
-                db.and_(OvertimeEntry.week_start >= start_date, OvertimeEntry.week_start <= end_date)
+        # ========== PESTAÑA 4: HORAS EXTRAS (condicional) ==========
+        # Añadir pestaña de horas extras SOLO si el filtro está activo
+        if 'Horas Extras' in status_filters:
+            # Filtrar horas extras por rango de fechas
+            overtime_query = OvertimeEntry.query.filter(
+                db.or_(
+                    db.and_(OvertimeEntry.week_start <= end_date, OvertimeEntry.week_end >= start_date),
+                    db.and_(OvertimeEntry.week_start >= start_date, OvertimeEntry.week_start <= end_date)
+                )
             )
-        )
 
-        # Aplicar filtros de usuario si existen
-        if user_id:
-            overtime_query = overtime_query.filter(OvertimeEntry.user_id == user_id)
-        elif categoria_id_filter:
-            overtime_query = overtime_query.join(User).filter(User.category_id == categoria_id_filter)
-        elif categoria_none_filter:
-            overtime_query = overtime_query.join(User).filter(User.category_id.is_(None))
+            # Aplicar filtros de usuario si existen
+            if user_id:
+                overtime_query = overtime_query.filter(OvertimeEntry.user_id == user_id)
+            elif categoria_id_filter:
+                overtime_query = overtime_query.join(User).filter(User.category_id == categoria_id_filter)
+            elif categoria_none_filter:
+                overtime_query = overtime_query.join(User).filter(User.category_id.is_(None))
 
-        if centro:
-            overtime_query = overtime_query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro)
+            if centro:
+                overtime_query = overtime_query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro)
 
-        overtime_entries = overtime_query.all()
-        add_overtime_sheet_to_workbook(wb, overtime_entries)
+            overtime_entries = overtime_query.all()
+            add_overtime_sheet_to_workbook(wb, overtime_entries)
 
         fd, temp_path = tempfile.mkstemp(suffix='.xlsx')
         os.close(fd)
