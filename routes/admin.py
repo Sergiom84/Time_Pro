@@ -27,9 +27,7 @@ admin_bp = Blueprint(
 
 logger = get_logger(__name__)
 
-# Listas estáticas (DEPRECADAS - usar funciones dinámicas en su lugar)
-CENTROS_DISPONIBLES = ["Centro 1", "Centro 2", "Centro 3"]
-DEFAULT_CATEGORIES = ["Coordinador", "Empleado", "Gestor"]
+# Constante para detectar "sin categoría" en formularios
 CATEGORY_NONE_VALUES = {"sin categoria", "sin categoría", "-- sin categoría --"}
 
 # Tipos de solicitudes con acciones diferenciadas
@@ -644,9 +642,10 @@ def edit_user(user_id):
                                    form_data=request.form, centro_admin=centro_admin,
                                    centros=centros, categorias=categorias)
 
+        # Solo modificar is_active si no es el usuario actual
         if user.id != session.get("user_id"):
-            user.is_admin  = request.form.get("is_admin")  == "on"
             user.is_active = request.form.get("is_active") == "on"
+            # NOTA: is_admin ya se gestiona arriba con can_grant_admin()
 
         pw = request.form.get("password")
         if pw:
@@ -991,7 +990,8 @@ def manage_records():
             (User.username.ilike(f"%{search_query}%"))
         )
 
-    recs = q.order_by(TimeRecord.check_in.desc()).all()
+    # Ordenar de más antiguo a más reciente por fecha y hora de entrada
+    recs = q.order_by(TimeRecord.check_in.asc()).all()
 
     # Filtrar por horas en Python para compatibilidad con SQLite/Postgres
     if ci_from or co_to:

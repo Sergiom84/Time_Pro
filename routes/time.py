@@ -4,7 +4,7 @@ from flask import (
 )
 from sqlalchemy import desc, text, and_
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as dt_time
 import calendar
 
 from models.models import TimeRecord, User, EmployeeStatus, WorkPause, LeaveRequest
@@ -40,9 +40,6 @@ def check_in(client_id):
     if existing_open:
         # Si es de un día anterior, cerrarlo automáticamente
         if existing_open.date < date.today():
-            from datetime import time as dt_time
-            from models.models import WorkPause
-
             # Cerrar a las 23:59:59 de su fecha
             auto_close_time = datetime.combine(
                 existing_open.date,

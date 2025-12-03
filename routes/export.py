@@ -208,13 +208,14 @@ def handle_daily_excel_export(req):
         )
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
+    # Eager loading: cargar User y Center para evitar N+1
     employee_statuses = []
     selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
             EmployeeStatus.date == fecha
-        ).order_by(EmployeeStatus.user_id).all()
+        ).options(joinedload(EmployeeStatus.user).joinedload(User.center)).order_by(EmployeeStatus.user_id).all()
 
     if not time_records and not employee_statuses:
         flash("No hay registros para ese día con los filtros seleccionados.", "warning")
@@ -326,7 +327,8 @@ def handle_daily_excel_export(req):
 
         row_num = 2
         for status_record in employee_statuses:
-            user = User.query.get(status_record.user_id)
+            # Usar el usuario cargado por joinedload (evita N+1)
+            user = status_record.user
             ws2.cell(row=row_num, column=1).value = user.username if user else f"ID: {status_record.user_id}"
             ws2.cell(row=row_num, column=2).value = user.full_name if user else "-"
             ws2.cell(row=row_num, column=3).value = get_user_category_label(user)
@@ -442,13 +444,14 @@ def handle_daily_pdf_export(req):
         )
 
     # Obtener registros de EmployeeStatus (Baja, Ausente, Vacaciones)
+    # Eager loading: cargar User y Center para evitar N+1
     employee_statuses = []
     selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
     if selected_statuses:
         employee_statuses = EmployeeStatus.query.filter(
             EmployeeStatus.status.in_(selected_statuses),
             EmployeeStatus.date == fecha
-        ).order_by(EmployeeStatus.user_id).all()
+        ).options(joinedload(EmployeeStatus.user).joinedload(User.center)).order_by(EmployeeStatus.user_id).all()
 
     if not time_records and not employee_statuses:
         flash("No hay registros para ese día con los filtros seleccionados.", "warning")
@@ -536,7 +539,8 @@ def handle_daily_pdf_export(req):
 
         pdf.set_font("Arial", "", 8)
         for status_record in employee_statuses:
-            user = User.query.get(status_record.user_id)
+            # Usar el usuario cargado por joinedload (evita N+1)
+            user = status_record.user
 
             pdf.cell(col_widths2[0], 6, user.username if user else f"ID:{status_record.user_id}", border=1)
             pdf.cell(col_widths2[1], 6, (user.full_name if user else "-")[:25], border=1)
@@ -698,9 +702,13 @@ def export_excel():
         logger.debug('--------------------------')
 
         # ========== OBTENER REGISTROS DE TIMERECORD (si "Trabajado" está seleccionado) ==========
+        # Eager loading: cargar User, Center y pauses para evitar N+1
         time_records = []
         if 'Trabajado' in status_filters:
-            query = TimeRecord.query.join(User, TimeRecord.user_id == User.id).filter(
+            query = TimeRecord.query.join(User, TimeRecord.user_id == User.id).options(
+                joinedload(TimeRecord.user).joinedload(User.center),
+                joinedload(TimeRecord.pauses)
+            ).filter(
                 TimeRecord.date >= start_date,
                 TimeRecord.date <= end_date
             )
@@ -726,10 +734,13 @@ def export_excel():
             time_records = query.order_by(TimeRecord.user_id, TimeRecord.date).all()
 
         # ========== OBTENER REGISTROS DE EMPLOYEESTATUS (Baja, Ausente, Vacaciones) ==========
+        # Eager loading: cargar User y Center para evitar N+1
         employee_statuses = []
         selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
         if selected_statuses:
-            status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
+            status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).options(
+                joinedload(EmployeeStatus.user).joinedload(User.center)
+            ).filter(
                 EmployeeStatus.status.in_(selected_statuses),
                 EmployeeStatus.date >= start_date,
                 EmployeeStatus.date <= end_date
@@ -789,7 +800,8 @@ def export_excel():
 
             row_num = 2
             for record in time_records:
-                user = User.query.get(record.user_id)
+                # Usar el usuario cargado por joinedload (evita N+1)
+                user = record.user
                 modified_by = User.query.get(record.modified_by) if record.modified_by else None
 
                 # Calcular horas totales
@@ -852,7 +864,8 @@ def export_excel():
 
             row_num = 2
             for status_record in employee_statuses:
-                user = User.query.get(status_record.user_id)
+                # Usar el usuario cargado por joinedload (evita N+1)
+                user = status_record.user
 
                 ws2.cell(row=row_num, column=1).value = user.username if user else f"ID: {status_record.user_id}"
                 ws2.cell(row=row_num, column=2).value = user.full_name if user else "-"
@@ -918,9 +931,9 @@ def export_excel():
         # Combinar ambos tipos de registros en una lista unificada
         consolidated_records = []
 
-        # Agregar TimeRecords
+        # Agregar TimeRecords - usar el usuario cargado por joinedload (evita N+1)
         for record in time_records:
-            user = User.query.get(record.user_id)
+            user = record.user
             hours_worked = ""
             if record.check_in and record.check_out:
                 time_diff = record.check_out - record.check_in
@@ -942,9 +955,9 @@ def export_excel():
                 'admin_notes': record.admin_notes or "-"
             })
 
-        # Agregar EmployeeStatus
+        # Agregar EmployeeStatus - usar el usuario cargado por joinedload (evita N+1)
         for status_record in employee_statuses:
-            user = User.query.get(status_record.user_id)
+            user = status_record.user
             consolidated_records.append({
                 'user_id': status_record.user_id,
                 'username': user.username if user else f"ID: {status_record.user_id}",
@@ -1101,9 +1114,12 @@ def export_excel_monthly():
             return redirect(url_for("export.export_excel_monthly"))
 
         # Consultar TimeRecord si "Trabajado" está seleccionado
+        # Eager loading: cargar User y Center para evitar N+1
         records = []
         if 'Trabajado' in status_filters:
-            query = TimeRecord.query.join(User, TimeRecord.user_id == User.id).filter(
+            query = TimeRecord.query.join(User, TimeRecord.user_id == User.id).options(
+                joinedload(TimeRecord.user).joinedload(User.center)
+            ).filter(
                 TimeRecord.date >= start_date,
                 TimeRecord.date <= end_date
             )
@@ -1128,10 +1144,13 @@ def export_excel_monthly():
             records = query.order_by(TimeRecord.user_id, TimeRecord.date).all()
 
         # Consultar EmployeeStatus si otros estados están seleccionados
+        # Eager loading: cargar User y Center para evitar N+1
         employee_statuses = []
         selected_statuses = expand_status_filters([s for s in status_filters if s not in ('Trabajado', 'Pausas', 'Horas Extras')])
         if selected_statuses:
-            status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).filter(
+            status_query = EmployeeStatus.query.join(User, EmployeeStatus.user_id == User.id).options(
+                joinedload(EmployeeStatus.user).joinedload(User.center)
+            ).filter(
                 EmployeeStatus.status.in_(selected_statuses),
                 EmployeeStatus.date >= start_date,
                 EmployeeStatus.date <= end_date

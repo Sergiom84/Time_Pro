@@ -1,0 +1,108 @@
+INTEGRACIÓN LEY FICHAJES – TIME_PRO
+===================================
+
+Este documento recoge los puntos a implementar en Time_Pro para alinearse con los requisitos de la normativa de registro horario y facilitar las inspecciones de trabajo.
+
+1. Pausas en los informes y Excel
+--------------------------------
+Objetivo: Asegurar que todas las pausas realizadas por los empleados se reflejan correctamente en los informes y en el archivo Excel exportado, diferenciando tiempo trabajado efectivo y tiempo de pausa.
+
+Requisito funcional:
+- Revisar si las pausas realizadas por los empleados aparecen en el Excel, es decir, comprobar que existe una columna o sección habilitada donde se detallen las pausas.
+
+Cambios a realizar (primer punto):
+- Backend:
+  - Revisar la lógica de exportación en `routes/export.py` (ej. función de export diario) para:
+    - Incluir en la consulta las pausas (`WorkPause`) asociadas a cada registro de tiempo (`TimeRecord`).
+    - Calcular y exponer el tiempo total de pausa por día y empleado.
+  - Asegurar que, en los cálculos de horas trabajadas, las pausas no computables se restan del total.
+- Excel:
+  - Añadir, si no existe, una columna “Tiempo de Pausa” en la hoja principal de resumen para cada día y empleado.
+  - Añadir una hoja adicional “Detalle de Pausas” que liste por fila:
+    - Usuario
+    - Fecha
+    - Hora inicio de la pausa
+    - Hora fin de la pausa
+    - Tipo de pausa (por ejemplo: café, comida, otros)
+    - Duración de la pausa
+- Verificación:
+  - Comprobar con varios usuarios y días que:
+    - Las pausas registradas en la aplicación aparecen reflejadas en el Excel.
+    - El tiempo efectivo de trabajo se calcula como “jornada total − tiempo de pausa no computable”.
+
+2. Gestión de Horas
+-------------------
+Objetivo: Permitir registrar y consultar el cumplimiento de la jornada semanal, separando horas por debajo y por encima del contrato, y dar herramientas de ajuste/aprobación al administrador.
+
+Requisitos funcionales:
+- Navegación: nuevo ítem en el menú lateral “Gestión de Horas”, situado debajo de “Gestión de Solicitudes”.
+- Pestañas:
+  - Pendientes: incluye todas las semanas en negativo (horas por debajo de la jornada semanal registrada en la ficha del empleado).
+  - Extras: incluye todas las semanas con exceso de horas sobre la jornada semanal.
+  - Histórico: registro de horas extras realizadas o ajustadas. Columnas: Empleado, Centro, Categoría, Jornada semanal, Número de horas extras, Notas empleado, Notas admin.
+
+3. Registro detallado de entradas, salidas y pausas
+---------------------------------------------------
+Objetivo: Garantizar un registro granular de la jornada, incluyendo cada entrada, salida y pausa con su marca temporal exacta.
+
+Requisito funcional:
+- El sistema debe capturar automáticamente cada hora de inicio y fin de la jornada de trabajo, así como las pausas dentro de la misma.
+- Cada vez que un empleado ficha (entrada, salida o inicio de descanso), el sistema genera un registro con la marca temporal exacta.
+- Las pausas no computables (descansos para café, comida, etc.) deben reflejarse con precisión, especialmente en jornadas partidas o turnos fragmentados.
+
+4. Sellos de tiempo y mecanismos antifraude
+-------------------------------------------
+Objetivo: Aumentar la confianza en los registros de fichajes mediante sellos de tiempo y mecanismos que dificulten la manipulación de datos.
+
+Requisito funcional:
+- Cada marca de fichaje debe llevar un sello temporal automático e infalsificable, asignado en el momento exacto del fichaje.
+- Este sello actúa como una firma electrónica de la entrada/salida, dificultando su alteración posterior.
+- Pueden emplearse tecnologías como timestamping, sellos digitales o enfoques tipo blockchain para reforzar la autenticidad de los datos.
+
+5. Trazabilidad completa (log de acciones)
+-----------------------------------------
+Objetivo: Disponer de un registro de auditoría que permita reconstruir quién hizo qué y cuándo dentro del sistema.
+
+Requisito funcional:
+- La aplicación debe mantener un log o registro de auditoría de todas las acciones relevantes:
+  - Fichajes de usuarios (entradas, salidas y pausas).
+  - Ajustes realizados por administradores.
+  - Generación de informes y exportaciones.
+- Cada entrada del log debe indicar el usuario responsable, la acción realizada, la fecha y hora, y el recurso afectado.
+- La Inspección de Trabajo debe poder acceder al histórico de cambios y logs para verificar que no hubo manipulaciones indebidas.
+
+6. Categorías de tiempo trabajadas
+----------------------------------
+Objetivo: Diferenciar claramente entre horas ordinarias y horas extraordinarias para cumplir la normativa.
+
+Requisito funcional:
+- El software debe ser capaz de diferenciar las distintas categorías de tiempo trabajado.
+- En cada registro se debe poder identificar si las horas son:
+  - Ordinarias: dentro de la jornada habitual.
+  - Extraordinarias: horas que exceden la jornada habitual.
+
+7. Avisos de máximos de horas
+-----------------------------
+Objetivo: Mantener y, en su caso, mejorar las alertas sobre límites de horas de trabajo y horas extra.
+
+Estado actual:
+- Avisar del máximo de horas semanales ya está implementado.
+- Avisos configurados:
+  - Si se superan las 40 horas semanales.
+  - Si se realizan más de 80 horas extra al año.
+
+Acción:
+- Revisar y mantener la lógica actual de alertas, adaptándola si es necesario a la nueva forma de registrar horas ordinarias y extraordinarias.
+
+8. Acceso remoto para inspector (solo lectura)
+----------------------------------------------
+Objetivo: Permitir que la Inspección de Trabajo acceda al sistema en modo solo lectura, con vistas específicas y seguras.
+
+Requisito funcional:
+- Dar acceso remoto al inspector para ingresar a una versión de solo lectura del sistema.
+- El inspector debe poder consultar:
+  - Registros de fichajes.
+  - Pausas.
+  - Logs de auditoría.
+  - Informes y exportaciones.
+- No debe poder modificar, borrar ni crear registros.

@@ -1,0 +1,119 @@
+Revisar si las pausas realizadas por los empleados aparecen en el Excel, es decir, hay una columna habilitada.
+
+Añadir opción de horas Horas extras por empleado. Cómo y dónde lo incluimos?
+
+
+Registro detallado de entradas, salidas y pausas: El sistema debe capturar automáticamente cada hora de inicio y fin de la jornada de trabajo, así como las pausas dentro de la misma.Cada vez que un empleado “ficha” (entrada, salida o inicio de descanso), el sistema genera un registro con la marca temporal exacta. Las pausas no computables (descansos para café, comida, etc.) deben reflejarse con precisión – especialmente en jornadas partidas o turnos fragmentados.
+
+Sellos de tiempo y mecanismos antifraude: Para garantizar la confianza en cada registro, cada marca de fichaje debe llevar un sello temporal automático e infalsificable. Es decir, el sistema pone una marca de fecha y hora segura en el momento exacto del fichaje. Este sello de tiempo actúa como una firma electrónica de la entrada/salida, dificultando su alteración posterior. Tecnologías de timestamping, sellos digitales o incluso blockchain pueden emplearse para reforzar la autenticidad de los datos.
+
+Trazabilidad completa (log de acciones): Relacionado con lo anterior, la aplicación debe mantener un log o registro de auditoría de todas las acciones relevantes. Esto significa registrar cuándo los usuarios fichan, cuándo los administradores realizan algún ajuste, cuándo se generan informes, etc., con indicación del usuario responsable. La Inspección de Trabajo tendrá acceso al histórico de cambios y a estos logs para verificar que no hubo manipulaciones indebidas.
+
+El software debe ser capaz de diferenciar las distintas categorías de tiempo trabajado, algo enfatizado por la nueva normativa. En cada registro se debería poder identificar si las horas son ordinarias (dentro de la jornada habitual) o horas extraordinarias que exceden la jornada
+
+Avisar del máximo de horas semanales, ya está implementado. aviso: si se superan las 40 horas semanales o si se realizan más de 80 horas extra al año
+
+Dar acceso remoto al inspector para ingresar a una versión de sólo lectura del sistema. Habilitar ésta opción. 
+
+
+Posible propuesta:
+
+Plan de Integración - Time_Pro
+Este documento detalla cómo se integrarán las nuevas funcionalidades solicitadas en la arquitectura actual de Time_Pro, sin modificar el código todavía.
+
+1. Revisión de Pausas en Excel
+Estado Actual: El sistema registra pausas en la tabla 
+WorkPause
+, pero el archivo Excel generado en 
+routes/export.py
+ actualmente no las incluye detalladamente. Cómo y Dónde integrarlo:
+
+Dónde: En el archivo 
+routes/export.py
+, específicamente en la función 
+handle_daily_excel_export
+.
+Cómo:
+Modificar la consulta para traer las pausas (
+WorkPause
+) asociadas a cada 
+TimeRecord
+.
+Añadir una nueva pestaña al Excel llamada "Detalle de Pausas" que liste: Usuario, Hora Inicio, Hora Fin, Tipo (Café, Comida, etc.) y Duración.
+En la pestaña principal "Resumen", añadir una columna "Tiempo de Pausa" que reste del tiempo total para dar el tiempo efectivo de trabajo.
+2. Gestión de Horas Extras
+Requerimiento: Añadir opción de horas extras por empleado. Cómo y Dónde integrarlo:
+
+Base de Datos (
+models/models.py
+):
+Añadir campo overtime_hours (Float) en la tabla 
+TimeRecord
+ para guardar cuántas horas de ese día fueron extras.
+Añadir campo overtime_balance (Float) en la tabla 
+User
+ para llevar el acumulado anual/mensual.
+Lógica (
+routes/time.py
+):
+En la función 
+check_out
+: Al calcular la duración del día (Salida - Entrada - Pausas), comparar con la jornada diaria del empleado (ej. 8 horas).
+Si Horas Trabajadas > Jornada Diaria: La diferencia se guarda en overtime_hours y el resto en hours_ordinary.
+3. Registro Detallado (Entradas, Salidas, Pausas)
+Requerimiento: Captura automática y precisa. Cómo y Dónde integrarlo:
+
+Ya existente: 
+TimeRecord
+ ya captura 
+check_in
+ y 
+check_out
+. 
+WorkPause
+ captura pausas.
+Mejora: Asegurar que las pausas "No computables" (ej. Comida) se resten automáticamente del total trabajado en los reportes.
+Validación: En 
+routes/time.py
+, impedir que se fiche salida si hay una pausa activa (forzar cierre de pausa primero).
+4. Sellos de Tiempo y Mecanismos Antifraude
+Requerimiento: Marcas de tiempo inalterables y firma electrónica. Cómo y Dónde integrarlo:
+
+Dónde: 
+models/models.py
+ y 
+routes/time.py
+.
+Cómo (Implementación tipo Blockchain simplificada):
+Hashing: Añadir un campo record_hash en 
+TimeRecord
+.
+Cadena: Este hash se generará combinando: ID Usuario + Timestamp Entrada + Timestamp Salida + Hash del registro anterior.
+Verificación: Si alguien intenta cambiar una fecha en la base de datos directamente, el hash no coincidirá, y la cadena se romperá, alertando de manipulación.
+
+6. Categorías de Tiempo (Ordinarias vs Extras)
+Requerimiento: Diferenciar tipos de horas. Cómo y Dónde integrarlo:
+
+Dónde: 
+models/models.py
+ (Tabla 
+TimeRecord
+).
+Cómo:
+Separar el campo único de horas en dos: ordinary_hours y extra_hours.
+En el Dashboard y Excel, mostrar estas dos columnas por separado para cumplir con la normativa.
+7. Aviso de Máximo de Horas
+Estado: Ya implementado (verificado). Acción: Mantener la lógica actual de alertas en el frontend/backend.
+
+8. Acceso Remoto para Inspector (Solo Lectura)
+Requerimiento: Usuario con permisos limitados para inspección. Cómo y Dónde integrarlo:
+
+Dónde: 
+models/models.py
+ (Enum de Roles) y 
+utils/auth_decorators.py
+.
+Cómo:
+Añadir rol 'inspector' a role_enum.
+Crear un decorador @inspector_access o modificar @admin_required para permitir acceso de lectura pero bloquear rutas POST (escritura/edición).
+Crear un Dashboard simplificado para el inspector que solo muestre listados y el Log de Auditoría, sin botones de "Editar" o "Eliminar".
