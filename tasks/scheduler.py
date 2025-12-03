@@ -12,12 +12,12 @@ def auto_close_open_records():
     Auto-close all open time records at 23:59:59.
     This function is called by the scheduler daily.
     """
-    try:
-        with current_app.app_context():
+    with current_app.app_context():
+        try:
             # Get current date and create the auto-close datetime (23:59:59 of the same day)
             today = date.today()
             auto_close_time = datetime.combine(today, dt_time(23, 59, 59))
-            
+
             # Find all open records from today (check_in not null, check_out is null)
             # BYPASS tenant filter to process ALL clients (scheduler has no HTTP session)
             open_records = TimeRecord.query.bypass_tenant_filter().filter(
@@ -51,11 +51,11 @@ def auto_close_open_records():
                 current_app.logger.info(f"Successfully auto-closed {len(open_records)} records")
             else:
                 current_app.logger.info(f"No open records to auto-close for {today}")
-                
-    except Exception as e:
-        current_app.logger.error(f"Error in auto_close_open_records: {str(e)}")
-        if db.session:
-            db.session.rollback()
+
+        except Exception as e:
+            current_app.logger.error(f"Error in auto_close_open_records: {str(e)}")
+            if db.session:
+                db.session.rollback()
 
 
 def manual_auto_close_records(target_date=None, is_manual=True):
@@ -67,8 +67,8 @@ def manual_auto_close_records(target_date=None, is_manual=True):
         target_date: The date to close records for (defaults to today)
         is_manual: If True, use current time. If False, use 23:59:59 (for automatic midnight close)
     """
-    try:
-        with current_app.app_context():
+    with current_app.app_context():
+        try:
             if target_date is None:
                 target_date = date.today()
 
@@ -116,8 +116,8 @@ def manual_auto_close_records(target_date=None, is_manual=True):
                 current_app.logger.info(f"No open records to auto-close for {target_date}")
                 return 0
 
-    except Exception as e:
-        current_app.logger.error(f"Error in manual_auto_close_records: {str(e)}")
-        if db.session:
-            db.session.rollback()
-        raise
+        except Exception as e:
+            current_app.logger.error(f"Error in manual_auto_close_records: {str(e)}")
+            if db.session:
+                db.session.rollback()
+            raise
