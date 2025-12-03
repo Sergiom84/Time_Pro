@@ -223,8 +223,25 @@ def check_out(client_id):
                 current_app.logger.error(f"Error al sellar check-out: {str(e)}")
                 # Continuar aunque falle el sellado (no bloquear al usuario)
 
+            # --- CERRAR PAUSAS ACTIVAS DEL FICHAJE ---
+            from models.models import WorkPause
+            active_pauses = WorkPause.query.filter(
+                WorkPause.time_record_id == open_record.id,
+                WorkPause.pause_end.is_(None)
+            ).all()
+
+            pauses_closed = 0
+            for pause in active_pauses:
+                pause.pause_end = now
+                pause.notes = (pause.notes or "") + (" - " if pause.notes else "") + "Cerrado automáticamente con el fichaje"
+                pauses_closed += 1
+
             db.session.commit()
-            flash("Salida registrada correctamente.", "success")
+
+            if pauses_closed > 0:
+                flash(f"Salida registrada correctamente. También se cerraron {pauses_closed} pausa(s) activa(s).", "success")
+            else:
+                flash("Salida registrada correctamente.", "success")
         else:
             flash("No tienes ningún fichaje abierto.", "warning")
 
