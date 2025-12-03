@@ -220,9 +220,12 @@ def handle_daily_excel_export(req):
         flash("No hay registros para ese día con los filtros seleccionados.", "warning")
         return redirect(url_for("export.export_excel"))
 
-    
-    # Calcular datos de pausas (tiempo total y detalle)
-    pause_seconds_by_record, pause_details = calculate_pause_data_for_records(time_records)
+
+    # Calcular datos de pausas SOLO si el filtro "Pausas" está activo
+    pause_seconds_by_record = {}
+    pause_details = []
+    if 'Pausas' in status_filters and time_records:
+        pause_seconds_by_record, pause_details = calculate_pause_data_for_records(time_records)
 
     # Generar Excel con 3 pestañas
     wb = openpyxl.Workbook()
@@ -231,20 +234,36 @@ def handle_daily_excel_export(req):
     if time_records:
         ws1 = wb.active
         ws1.title = "Registros de Fichaje"
-        header1 = [
-            "Usuario",
-            "Nombre completo",
-            "Categoria",
-            "Centro",
-            "Fecha",
-            "Entrada",
-            "Salida",
-            "Horas Totales",
-            "Tiempo de Pausa",
-            "Horas Efectivas",
-            "Notas",
-            "Notas Admin",
-        ]
+
+        # Header condicional según filtro de Pausas
+        if 'Pausas' in status_filters:
+            header1 = [
+                "Usuario",
+                "Nombre completo",
+                "Categoria",
+                "Centro",
+                "Fecha",
+                "Entrada",
+                "Salida",
+                "Horas Totales",
+                "Tiempo de Pausa",
+                "Horas Efectivas",
+                "Notas",
+                "Notas Admin",
+            ]
+        else:
+            header1 = [
+                "Usuario",
+                "Nombre completo",
+                "Categoria",
+                "Centro",
+                "Fecha",
+                "Entrada",
+                "Salida",
+                "Horas Trabajadas",
+                "Notas",
+                "Notas Admin",
+            ]
         for col_num, header_text in enumerate(header1, 1):
             cell = ws1.cell(row=1, column=col_num)
             cell.value = header_text
@@ -259,11 +278,13 @@ def handle_daily_excel_export(req):
             if record.check_in and record.check_out:
                 total_seconds = int((record.check_out - record.check_in).total_seconds())
 
-            pause_seconds = pause_seconds_by_record.get(record.id, 0)
+            # Pausas solo si filtro activo
+            pause_seconds = pause_seconds_by_record.get(record.id, 0) if 'Pausas' in status_filters else 0
             effective_seconds = None
-            if total_seconds is not None:
+            if 'Pausas' in status_filters and total_seconds is not None:
                 effective_seconds = max(total_seconds - pause_seconds, 0)
 
+            # Escribir columnas comunes (1-7)
             ws1.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
             ws1.cell(row=row_num, column=2).value = user.full_name if user else "-"
             ws1.cell(row=row_num, column=3).value = get_user_category_label(user)
@@ -271,11 +292,19 @@ def handle_daily_excel_export(req):
             ws1.cell(row=row_num, column=5).value = record.date.strftime("%d/%m/%Y")
             ws1.cell(row=row_num, column=6).value = record.check_in.strftime("%H:%M:%S") if record.check_in else "-"
             ws1.cell(row=row_num, column=7).value = record.check_out.strftime("%H:%M:%S") if record.check_out else "-"
-            ws1.cell(row=row_num, column=8).value = format_duration_from_seconds(total_seconds)
-            ws1.cell(row=row_num, column=9).value = format_duration_from_seconds(pause_seconds)
-            ws1.cell(row=row_num, column=10).value = format_duration_from_seconds(effective_seconds)
-            ws1.cell(row=row_num, column=11).value = record.notes
-            ws1.cell(row=row_num, column=12).value = record.admin_notes
+
+            # Columnas condicionales según filtro
+            if 'Pausas' in status_filters:
+                ws1.cell(row=row_num, column=8).value = format_duration_from_seconds(total_seconds)
+                ws1.cell(row=row_num, column=9).value = format_duration_from_seconds(pause_seconds)
+                ws1.cell(row=row_num, column=10).value = format_duration_from_seconds(effective_seconds)
+                ws1.cell(row=row_num, column=11).value = record.notes
+                ws1.cell(row=row_num, column=12).value = record.admin_notes
+            else:
+                ws1.cell(row=row_num, column=8).value = format_duration_from_seconds(total_seconds)
+                ws1.cell(row=row_num, column=9).value = record.notes
+                ws1.cell(row=row_num, column=10).value = record.admin_notes
+
             row_num += 1
 
         for col_num, _ in enumerate(header1, 1):
@@ -670,6 +699,12 @@ def export_excel():
             flash("No hay registros para el período y filtros seleccionados.", "warning")
             return redirect(url_for("export.export_excel"))
 
+        # Calcular pausas si el filtro está activo
+        pause_seconds_by_record = {}
+        pause_details = []
+        if 'Pausas' in status_filters and time_records:
+            pause_seconds_by_record, pause_details = calculate_pause_data_for_records(time_records)
+
         # ========== GENERAR EXCEL CON 3 PESTAÑAS ==========
 
         wb = openpyxl.Workbook()
@@ -679,7 +714,12 @@ def export_excel():
             ws1 = wb.active
             ws1.title = "Registros de Fichaje"
 
-            header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+            # Header condicional según filtro de Pausas
+            if 'Pausas' in status_filters:
+                header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Totales", "Tiempo de Pausa", "Horas Efectivas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+            else:
+                header1 = ["Usuario", "Nombre completo", "Categoría", "Centro", "Fecha", "Entrada", "Salida", "Horas Trabajadas", "Notas", "Notas Admin", "Modificado Por", "Última Actualización"]
+
             for col_num, header_text in enumerate(header1, 1):
                 cell = ws1.cell(row=1, column=col_num)
                 cell.value = header_text
@@ -692,13 +732,19 @@ def export_excel():
                 user = User.query.get(record.user_id)
                 modified_by = User.query.get(record.modified_by) if record.modified_by else None
 
-                # Calcular horas
-                hours_worked = ""
+                # Calcular horas totales
+                total_seconds = None
                 if record.check_in and record.check_out:
                     time_diff = record.check_out - record.check_in
-                    hours = time_diff.total_seconds() / 3600
-                    hours_worked = f"{hours:.2f}"
+                    total_seconds = int(time_diff.total_seconds())
 
+                # Pausas solo si filtro activo
+                pause_seconds = pause_seconds_by_record.get(record.id, 0) if 'Pausas' in status_filters else 0
+                effective_seconds = None
+                if 'Pausas' in status_filters and total_seconds is not None:
+                    effective_seconds = max(total_seconds - pause_seconds, 0)
+
+                # Escribir columnas comunes (1-7)
                 ws1.cell(row=row_num, column=1).value = user.username if user else f"ID: {record.user_id}"
                 ws1.cell(row=row_num, column=2).value = user.full_name if user else "-"
                 ws1.cell(row=row_num, column=3).value = get_user_category_label(user)
@@ -706,11 +752,23 @@ def export_excel():
                 ws1.cell(row=row_num, column=5).value = record.date.strftime("%d/%m/%Y")
                 ws1.cell(row=row_num, column=6).value = record.check_in.strftime("%H:%M:%S") if record.check_in else "-"
                 ws1.cell(row=row_num, column=7).value = record.check_out.strftime("%H:%M:%S") if record.check_out else "-"
-                ws1.cell(row=row_num, column=8).value = hours_worked
-                ws1.cell(row=row_num, column=9).value = record.notes
-                ws1.cell(row=row_num, column=10).value = record.admin_notes
-                ws1.cell(row=row_num, column=11).value = modified_by.username if modified_by else "-"
-                ws1.cell(row=row_num, column=12).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+
+                # Columnas condicionales según filtro
+                if 'Pausas' in status_filters:
+                    ws1.cell(row=row_num, column=8).value = format_duration_from_seconds(total_seconds)
+                    ws1.cell(row=row_num, column=9).value = format_duration_from_seconds(pause_seconds)
+                    ws1.cell(row=row_num, column=10).value = format_duration_from_seconds(effective_seconds)
+                    ws1.cell(row=row_num, column=11).value = record.notes
+                    ws1.cell(row=row_num, column=12).value = record.admin_notes
+                    ws1.cell(row=row_num, column=13).value = modified_by.username if modified_by else "-"
+                    ws1.cell(row=row_num, column=14).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+                else:
+                    ws1.cell(row=row_num, column=8).value = format_duration_from_seconds(total_seconds)
+                    ws1.cell(row=row_num, column=9).value = record.notes
+                    ws1.cell(row=row_num, column=10).value = record.admin_notes
+                    ws1.cell(row=row_num, column=11).value = modified_by.username if modified_by else "-"
+                    ws1.cell(row=row_num, column=12).value = record.updated_at.strftime("%d/%m/%Y %H:%M:%S")
+
                 row_num += 1
 
             for col_num, _ in enumerate(header1, 1):
@@ -749,6 +807,42 @@ def export_excel():
             for col_num, _ in enumerate(header2, 1):
                 col_letter = get_column_letter(col_num)
                 ws2.column_dimensions[col_letter].width = 17
+
+        # ========== PESTAÑA: DETALLE DE PAUSAS ==========
+        if pause_details:
+            ws_pausas = wb.create_sheet("Detalle de Pausas")
+            header_pausas = [
+                "Usuario", "Nombre completo", "Categoría", "Centro", "Fecha",
+                "Hora Inicio Pausa", "Hora Fin Pausa", "Tipo de Pausa",
+                "Duración", "Notas"
+            ]
+
+            for col_num, header_text in enumerate(header_pausas, 1):
+                cell = ws_pausas.cell(row=1, column=col_num)
+                cell.value = header_text
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center')
+                cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+            row_num = 2
+            for detail in pause_details:
+                user = detail["user"]
+                pause = detail["pause"]
+                ws_pausas.cell(row=row_num, column=1).value = user.username if user else f"ID: {pause.user_id}"
+                ws_pausas.cell(row=row_num, column=2).value = user.full_name if user else "-"
+                ws_pausas.cell(row=row_num, column=3).value = get_user_category_label(user)
+                ws_pausas.cell(row=row_num, column=4).value = user.center.name if user and user.center else "-"
+                ws_pausas.cell(row=row_num, column=5).value = detail["date"].strftime("%d/%m/%Y")
+                ws_pausas.cell(row=row_num, column=6).value = pause.pause_start.strftime("%H:%M:%S")
+                ws_pausas.cell(row=row_num, column=7).value = pause.pause_end.strftime("%H:%M:%S")
+                ws_pausas.cell(row=row_num, column=8).value = pause.pause_type
+                ws_pausas.cell(row=row_num, column=9).value = format_duration_from_seconds(detail["duration_seconds"])
+                ws_pausas.cell(row=row_num, column=10).value = detail["notes"]
+                row_num += 1
+
+            for col_num, _ in enumerate(header_pausas, 1):
+                col_letter = get_column_letter(col_num)
+                ws_pausas.column_dimensions[col_letter].width = 18
 
         # ========== PESTAÑA 3: RESUMEN CONSOLIDADO ==========
         ws3 = wb.create_sheet("Resumen Consolidado")
@@ -1002,6 +1096,15 @@ def export_excel_monthly():
         if not records and not employee_statuses:
             flash("No hay registros para el período y filtros seleccionados.", "warning")
             return redirect(url_for("export.export_excel_monthly"))
+
+        # Calcular pausas si el filtro está activo
+        pause_seconds_by_record = {}
+        pause_details = []
+        if 'Pausas' in status_filters and records:
+            pause_seconds_by_record, pause_details = calculate_pause_data_for_records(records)
+
+        # TODO: Adaptar headers y columnas del tab "Registros de Fichaje" según filtro de Pausas
+        # (similar a export_excel, pero considerando la lógica de sumas semanales)
 
         # Generar Excel con 3 pestañas
         wb = openpyxl.Workbook()
