@@ -1782,6 +1782,9 @@ def overtime_dashboard():
     client_id = session.get("client_id")
     centro_admin = get_admin_centro()
 
+    # Obtener fecha actual para filtrar solo semanas completadas
+    current_date = datetime.now(timezone.utc).date()
+
     # Obtener parámetros
     selected_week = request.args.get("week", "")
     tab = request.args.get("tab", "pending")  # pending o history
@@ -1825,12 +1828,14 @@ def overtime_dashboard():
     if tab == "pending":
         entries = base_query.filter(
             OvertimeEntry.status == "Pendiente",
-            OvertimeEntry.overtime_seconds < 0
+            OvertimeEntry.overtime_seconds < 0,
+            OvertimeEntry.week_end < current_date  # Solo semanas completadas
         ).all()
     elif tab == "extras":
         entries = base_query.filter(
             OvertimeEntry.status == "Pendiente",
-            OvertimeEntry.overtime_seconds > 0
+            OvertimeEntry.overtime_seconds > 0,
+            OvertimeEntry.week_end < current_date  # Solo semanas completadas
         ).all()
     else:  # history
         entries = base_query.filter(
@@ -1872,7 +1877,8 @@ def overtime_dashboard():
         prev_week=prev_week,
         next_week=next_week,
         tab=tab,
-        centro_admin=centro_admin
+        centro_admin=centro_admin,
+        current_date=current_date
     )
 
 
