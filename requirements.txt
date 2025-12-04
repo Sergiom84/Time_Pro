@@ -38,3 +38,4 @@ python-magic==0.4.27
 requests==2.32.5
 flask-talisman==1.1.0
 bleach==6.3.0
+flask-compress==1.15

@@ -18,6 +18,7 @@ from utils.auth_decorators import admin_required
 from utils.helpers import format_timedelta
 from utils.query_helpers import time_records_query, work_pauses_query
 from utils.logging_utils import get_logger
+from utils.timezone_utils import get_now_spain
 
 admin_bp = Blueprint(
     "admin", __name__,
@@ -1987,7 +1988,7 @@ def get_pending_overtime_count():
     """API para obtener el contador de horas extras pendientes (para campanita)"""
     client_id = session.get("client_id")
     centro_admin = get_admin_centro()
-    current_date = datetime.now(timezone.utc).date()
+    current_date = get_now_spain().date()
 
     query = OvertimeEntry.query.filter(
         OvertimeEntry.status == "Pendiente",
@@ -2048,7 +2049,7 @@ def get_processed_overtime_count():
     """
     client_id = session.get("client_id")
     centro_admin = get_admin_centro()
-    current_date = datetime.now(timezone.utc).date()
+    current_date = get_now_spain().date()
 
     query = OvertimeEntry.query.filter(
         OvertimeEntry.status.in_(["Aprobado", "Ajustado", "Rechazado"]),

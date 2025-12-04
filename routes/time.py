@@ -16,6 +16,7 @@ from utils.auth_decorators import client_required
 from utils.query_helpers import time_records_query, employee_status_query, work_pauses_query, leave_requests_query
 from utils.logging_utils import get_logger
 from utils.db_helpers import db_transaction
+from utils.timezone_utils import get_now_spain
 
 time_bp = Blueprint("time", __name__)
 
@@ -102,7 +103,7 @@ def check_in(client_id):
                 "warning"
             )
         else:
-            now = datetime.now()
+            now = get_now_spain()
 
             # --- crear TimeRecord ---
             new_rec = TimeRecord(
@@ -187,7 +188,7 @@ def check_out(client_id):
         ).order_by(desc(TimeRecord.id)).first()
 
         if open_record:
-            now = datetime.now()
+            now = get_now_spain()
             open_record.check_out = now
             open_record.notes = sanitize_text(request.form.get("notes", ""))
 
@@ -518,7 +519,7 @@ def start_pause(client_id):
             user_id=user_id,
             time_record_id=today_record.id,
             pause_type=data.get("pause_type", "Descanso"),
-            pause_start=datetime.now(),
+            pause_start=get_now_spain(),
             notes=sanitize_text(data.get("notes", ""))
         )
 
@@ -587,7 +588,7 @@ def end_pause(pause_id):
             })
 
         # Finalizar la pausa
-        pause.pause_end = datetime.now()
+        pause.pause_end = get_now_spain()
         db.session.commit()
 
         # Calcular duración

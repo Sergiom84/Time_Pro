@@ -27,6 +27,7 @@ from flask import Flask, render_template, request, abort, jsonify
 from flask_mail import Mail
 from flask_caching import Cache
 from flask_talisman import Talisman
+from flask_compress import Compress
 from models.database import db
 from flask_migrate import Migrate, upgrade as migrate_upgrade
 from routes.auth import auth_bp
@@ -98,6 +99,10 @@ Talisman(
     content_security_policy=None,  # CSP desactivada por ahora para no romper recursos
     force_https=force_https
 )
+
+# Habilitar compresión gzip para respuestas HTTP
+# Reduce tamaño de respuestas en ~70% (HTML, JSON, CSS)
+Compress(app)
 
 # Configure SQLAlchemy engine options based on environment
 is_production = os.getenv('DYNO') or os.getenv('RENDER')
@@ -457,9 +462,13 @@ def init_scheduler():
     try:
         scheduler = BackgroundScheduler(daemon=True)
 
-        # Import the task functions
-        from tasks.scheduler import auto_close_open_records
+        # Import the task functions and initialize with app reference
+        from tasks.scheduler import auto_close_open_records, init_scheduler_app
         from tasks.email_service_v3 import check_and_send_notifications_v3
+
+        # IMPORTANTE: Pasar la referencia de la app al módulo de scheduler
+        # Esto evita el error "Working outside of application context"
+        init_scheduler_app(app)
 
         # Schedule the auto-close task to run daily at 23:59:59
         scheduler.add_job(
