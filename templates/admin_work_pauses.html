@@ -149,7 +149,7 @@
               </td>
               {% if plan_config.show_center_selector %}
               <td class="px-3 py-3 whitespace-nowrap">
-                {{ pause.user_rel.centro or 'Sin centro' }}
+                {{ pause.user_rel.center.name if pause.user_rel.center else 'Sin centro' }}
               </td>
               {% endif %}
               <td class="px-3 py-3 whitespace-nowrap">

@@ -2158,7 +2158,10 @@ def work_pauses():
         query = query.filter(User.center_id == centro_admin)
         filter_centro = centro_admin
     elif filter_centro != "all" and filter_centro:
-        query = query.filter(User.center_id == filter_centro)
+        # Convertir nombre del centro a ID
+        center_id = get_center_id_by_name(filter_centro)
+        if center_id:
+            query = query.filter(User.center_id == center_id)
 
     if filter_categoria_id:
         query = query.filter(User.category_id == filter_categoria_id)
