@@ -284,11 +284,8 @@ def inject_user():
             current_client = get_current_client()
             client_config_dict = get_client_config()
 
-    # Obtener el tema actual del usuario (si está autenticado) o el tema por defecto
-    if user:
-        current_theme = user.theme_preference
-    else:
-        current_theme = 'dark-turquoise'  # Tema por defecto para usuarios no autenticados
+    # Tema por defecto
+    current_theme = 'dark-turquoise'
 
     # Inyectar configuración del plan en todos los templates
     # Si hay cliente, usar su configuración, sino usar la global
