@@ -360,67 +360,6 @@ def index():
     return render_template("welcome.html")
 
 
-@app.route("/user/theme", methods=["POST"])
-def change_theme():
-    """Cambiar el tema individual del usuario mediante HTTP (sin Socket.IO)."""
-    from flask import session
-    from models.models import User
-
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"success": False, "message": "No autenticado"}), 401
-
-    data = request.get_json(silent=True) or {}
-    theme_name = data.get("theme") or request.form.get("theme")
-
-    valid_themes = ["dark-turquoise", "light-minimal", "turquoise-gradient"]
-    if theme_name not in valid_themes:
-        return jsonify({"success": False, "message": "Tema no válido"}), 400
-
-    user = db.session.get(User, user_id)
-    if not user:
-        return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
-
-    user.theme_preference = theme_name
-    db.session.commit()
-
-    return jsonify(
-        {"success": True, "message": f"Tema cambiado a {theme_name}", "theme": theme_name}
-    )
-
-# WebSocket events para temas individuales (sin sincronización global)
-def handle_connect():
-    """Manejar conexión de clientes - Ya no es necesario emitir tema inicial"""
-    pass
-
-def handle_theme_change(data):
-    """Manejar cambio de tema individual del usuario"""
-    from flask import session
-    from models.models import User
-
-    # Verificar que el usuario está autenticado
-    user_id = session.get('user_id')
-    if not user_id:
-        return {'success': False, 'message': 'No autenticado'}
-
-    theme_name = data.get('theme')
-    valid_themes = ['dark-turquoise', 'light-minimal', 'turquoise-gradient']
-
-    if theme_name not in valid_themes:
-        return {'success': False, 'message': 'Tema no válido'}
-
-    # Guardar tema en el usuario actual (no en SystemConfig)
-    user = db.session.get(User, user_id)
-    if not user:
-        return {'success': False, 'message': 'Usuario no encontrado'}
-
-    user.theme_preference = theme_name
-    db.session.commit()
-
-    # Solo notificar al usuario actual (sin broadcast)
-    emit('theme_update', {'theme': theme_name})
-
-    return {'success': True, 'message': f'Tema cambiado a {theme_name}'}
 
 def init_db():
     """Initialize database tables and run migrations"""
