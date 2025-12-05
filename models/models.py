@@ -94,7 +94,6 @@ class User(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey("category.id", ondelete="SET NULL"), nullable=True)
     hire_date = db.Column(db.Date, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
-    theme_preference = db.Column(db.String(50), default='dark-turquoise', nullable=False)
 
     # Campos para notificaciones por correo
     email_notifications = db.Column(db.Boolean, default=False, nullable=False)
