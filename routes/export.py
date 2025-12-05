@@ -79,6 +79,27 @@ def expand_status_filters(filters):
     return ordered_unique
 
 
+def resolve_center_filter(value):
+    """Devuelve center_id para un nombre de centro recibido en formularios."""
+    if not value or value in ("", "all", "Todos"):
+        return None
+
+    client_id = session.get("client_id")
+    if not client_id:
+        return None
+
+    # Intentar buscar por nombre
+    center = Center.query.filter_by(client_id=client_id, name=value).first()
+    if center:
+        return center.id
+
+    # Si falla, intentar como ID directo
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def resolve_category_filter(value):
     """Devuelve (category_id, filter_none_flag) para un nombre recibido en formularios."""
     if not value or value in ("", "all"):
@@ -691,10 +712,12 @@ def export_excel():
         if not status_filters:
             status_filters = ['Trabajado']  # Default solo trabajado
 
+        # Resolver filtros: convertir nombres a IDs
+        centro_id_filter = resolve_center_filter(centro)
         categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
 
         logger.debug('Valores usados para filtrar:')
-        logger.debug(f'centro: {centro}')
+        logger.debug(f'centro: {centro} -> {centro_id_filter}')
         logger.debug(f'user_id: {user_id}')
         logger.debug(f'categoria: {categoria}')
         logger.debug(f'weekly_hours: {weekly_hours}')
@@ -714,8 +737,8 @@ def export_excel():
             )
 
             # Aplicar filtros
-            if centro:
-                query = query.filter(User.center_id == centro)
+            if centro_id_filter:
+                query = query.filter(User.center_id == centro_id_filter)
             if user_id:
                 query = query.filter(TimeRecord.user_id == user_id)
             if categoria_id_filter:
@@ -747,8 +770,8 @@ def export_excel():
             )
 
             # Aplicar los mismos filtros
-            if centro:
-                status_query = status_query.filter(User.center_id == centro)
+            if centro_id_filter:
+                status_query = status_query.filter(User.center_id == centro_id_filter)
             if user_id:
                 status_query = status_query.filter(EmployeeStatus.user_id == user_id)
             if categoria_id_filter:
@@ -1015,8 +1038,8 @@ def export_excel():
             elif categoria_none_filter:
                 overtime_query = overtime_query.join(User).filter(User.category_id.is_(None))
 
-            if centro:
-                overtime_query = overtime_query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro)
+            if centro_id_filter:
+                overtime_query = overtime_query.join(User, OvertimeEntry.user_id == User.id).filter(User.center_id == centro_id_filter)
 
             overtime_entries = overtime_query.all()
             add_overtime_sheet_to_workbook(wb, overtime_entries)
@@ -1091,6 +1114,8 @@ def export_excel_monthly():
             categoria = request.form.get("categoria")
             weekly_hours = request.form.get("weekly_hours") or request.form.get("jornada")
 
+        # Resolver filtros: convertir nombres a IDs
+        centro_id_filter = resolve_center_filter(centro)
         categoria_id_filter, categoria_none_filter = resolve_category_filter(categoria)
 
         start_date = request.form.get("start_date")
@@ -1124,8 +1149,8 @@ def export_excel_monthly():
                 TimeRecord.date <= end_date
             )
 
-            if centro:
-                query = query.filter(User.center_id == centro)
+            if centro_id_filter:
+                query = query.filter(User.center_id == centro_id_filter)
             if user_id:
                 query = query.filter(TimeRecord.user_id == user_id)
             if categoria_id_filter:
@@ -1156,8 +1181,8 @@ def export_excel_monthly():
                 EmployeeStatus.date <= end_date
             )
 
-            if centro:
-                status_query = status_query.filter(User.center_id == centro)
+            if centro_id_filter:
+                status_query = status_query.filter(User.center_id == centro_id_filter)
             if user_id:
                 status_query = status_query.filter(EmployeeStatus.user_id == user_id)
             if categoria_id_filter:
