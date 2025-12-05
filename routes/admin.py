@@ -397,19 +397,13 @@ def dashboard():
 def manage_users():
     centro_admin = get_admin_centro()
 
-    # Verificar si es super admin (para saber si puede ver usuarios de otros clientes)
-    is_super = is_super_admin_user(_current_user())
-
     # Filtros opcionales
     filtro_centro = request.args.get("centro", type=str, default="")
     filtro_categoria = request.args.get("categoria", type=str, default="")
     search_query = request.args.get("search", type=str, default="")
 
+    # Usar TenantAwareQuery que filtra automáticamente por client_id
     q = User.query
-
-    # Si es super admin, bypass el filtro multitenant para ver todos los usuarios
-    if is_super:
-        q = q.bypass_tenant_filter()
 
     if centro_admin:
         # Filtrar por ID de centro (el admin solo ve su centro)
@@ -850,12 +844,9 @@ def add_center():
 @admin_required
 def edit_center(center_id):
     """Editar centro"""
-    center = Center.query.get_or_404(center_id)
-
-    # Verificar que el usuario tenga permiso para editar este centro
-    if center.client_id != session.get("client_id"):
-        flash("No tienes permiso para editar este centro.", "danger")
-        return redirect(url_for("admin.manage_centers"))
+    client_id = session.get("client_id")
+    # Filtrar por client_id PRIMERO para evitar enumeración de recursos
+    center = Center.query.filter_by(client_id=client_id, id=center_id).first_or_404()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -888,12 +879,9 @@ def edit_center(center_id):
 @admin_required
 def delete_center(center_id):
     """Eliminar centro"""
-    center = Center.query.get_or_404(center_id)
-
-    # Verificar que el usuario tenga permiso para eliminar este centro
-    if center.client_id != session.get("client_id"):
-        flash("No tienes permiso para eliminar este centro.", "danger")
-        return redirect(url_for("admin.manage_centers"))
+    client_id = session.get("client_id")
+    # Filtrar por client_id PRIMERO para evitar enumeración de recursos
+    center = Center.query.filter_by(client_id=client_id, id=center_id).first_or_404()
 
     # Verificar que no hay usuarios usando este centro
     users_count = User.query.filter_by(center_id=center_id).count()
