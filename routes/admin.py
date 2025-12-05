@@ -1274,7 +1274,17 @@ def api_centro_info():
     if centro_admin:
         users = users.filter(User.center_id == centro_admin)
     elif centro:
-        users = users.filter(User.center_id == centro)
+        # Convertir nombre del centro a su ID
+        centro_obj = Center.query.filter_by(name=centro).first()
+        if centro_obj:
+            users = users.filter(User.center_id == centro_obj.id)
+        else:
+            # Si no encuentra por nombre, intentar como ID directamente
+            try:
+                centro_id = int(centro)
+                users = users.filter(User.center_id == centro_id)
+            except (ValueError, TypeError):
+                pass  # Centro inválido, devolver usuarios vacíos
 
     users = users.all()
     # Obtener categorías dinámicas del cliente actual (no hardcodeadas)
