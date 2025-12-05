@@ -5,6 +5,20 @@
 
 ---
 
+## ⚠️ **IMPORTANTE: ANTES DE USAR CLAUDE CODE**
+
+**SIEMPRE lee el archivo `.mcp.json` antes de trabajar con Claude Code.**
+
+El archivo `.mcp.json` contiene las credenciales y configuraciones críticas de:
+- 🔐 **GitHub**: Personal Access Token
+- 🗄️ **Supabase**: Access Token para la BD
+- 🚀 **Render**: Authorization Bearer para el hosting
+
+**NUNCA cometas el archivo `.mcp.json` con valores reales a Git.**
+Las credenciales deben estar siempre en archivos locales y en variables de entorno del servidor.
+
+---
+
 ## 🎯 Índice
 
 1. [Información del Proyecto](#información-del-proyecto)
